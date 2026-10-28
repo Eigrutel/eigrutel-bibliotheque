@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const acorn = require('acorn');
+const html = fs.readFileSync('dist/bibliotheque.html', 'utf8');
+assert(html.startsWith('<!--'));
+assert(html.includes('<!DOCTYPE html>'));
+assert.equal((html.match(/<html /g)||[]).length,1);
+assert(!/CompressionStream|DecompressionStream|document\.write\(|language-payload|__CATALOG__|__ZIP__/.test(html));
+assert.equal((html.match(/id="language-switch"/g)||[]).length,1);
+const seed=JSON.parse(html.match(/<script id="seed" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+assert.equal(seed.books.length,0);
+for(const [,source] of html.matchAll(/<script>([\s\S]*?)<\/script>/g))acorn.parse(source,{ecmaVersion:'latest'});
+// Exercise runtime dictionary calls with browser storage disabled.
+const source=fs.readFileSync('i18n.js','utf8').replace('__CATALOG__',JSON.stringify(require('./locales/en.json'))).replace('I18n.bindStatic();','');
+const ctx={localStorage:{getItem(){throw Error('blocked')},setItem(){throw Error('blocked')}},document:{documentElement:{},getElementById(){return null}}};
+vm.createContext(ctx);vm.runInContext(source,ctx);
+assert.equal(vm.runInContext('I18n.t("Ajouter un livre")',ctx),'Ajouter un livre');
+vm.runInContext('I18n.setLanguage("en")',ctx);
+assert.equal(vm.runInContext('I18n.t("Ajouter un livre")',ctx),'Add a book');
+assert.equal(vm.runInContext('I18n.t(" livres sélectionnés dans la corbeille ?")',ctx),' selected books to the trash?');
+assert.equal(vm.runInContext('I18n.t("Bon état")',ctx),'Good');
+assert.equal(vm.runInContext('I18n.html(\'<button title="Fermer">Annuler</button>\')',ctx),'<button title="Close">Cancel</button>');
+vm.runInContext('I18n.setLanguage("fr")',ctx);
+assert.equal(vm.runInContext('I18n.t("Bon état")',ctx),'Bon état');
+console.log('PASS: single application, executable scripts, reversible runtime FR/EN dictionary without storage or decompression.');

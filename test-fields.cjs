@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),C=require('./core.js');
+const b=C.book({id:'test',title:'Test',pages:'128',language:'Français',condition:'Bon état',loanName:'Alex',loanDate:'2026-10-28'}),state={format:C.FORMAT,schemaVersion:1,books:[b],palette:[{id:'…',name:'Repère B (à préciser)',hex:'#d5d5d5'}]};
+const checked=C.validate(state);assert.equal(checked.palette[0].name,'Gris');assert.equal(C.validate({...state,palette:[{id:'…',name:'Personnel',hex:'#d5d5d5'}]}).palette[0].name,'Personnel');
+assert.equal(C.validate(JSON.parse(JSON.stringify(checked))).books[0].pages,'128');assert.equal(C.bulkUpdate(checked,['test'],{language:'Anglais',pages:'256'}).books[0].pages,'256');assert.throws(()=>C.bulkUpdate(checked,['test'],{pages:'-1'}));assert.throws(()=>C.bulkUpdate(checked,['test'],{pages:'1.5'}));
+assert(C.matchesFields(b,{language:'Français',condition:'Bon état',pagesMin:'100',pagesMax:'150',loan:'yes',loanFrom:'2026-10-01',loanTo:'2026-10-31'}));for(const f of [{language:'Anglais'},{pagesMax:'100'},{pagesMin:'200'},{loan:'no'},{loanTo:'2026-10-01'},{language:'__empty__'}])assert(!C.matchesFields(b,f));assert(!C.matchesFields(C.book(),{pagesMin:'1'}));
+const html=C.renderNotes('[color=#004d65]**Texte**[/color] [highlight=#ffe58a]repère[/highlight]');assert(html.includes('<span style="color:#004d65"><strong>Texte</strong></span>'));assert(html.includes('<mark style="background-color:#ffe58a;color:#202020">repère</mark>'));
+assert(!C.renderNotes('[color=#ff0000]<img src=x onerror=alert(1)>[/color]').includes('<img'));
+assert(!C.renderNotes('[color=red;evil]x[/color]').includes('<span'));
+assert(!C.renderNotes('[lien](https://example.com/[color=#ff0000]evil[/color])').includes('href="https://example.com/<'));
+console.log('PASS: pages/langue, filtres combinés, migration Gris et mise en couleur sécurisée des notes.');

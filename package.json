@@ -1,0 +1,18 @@
+{
+  "name": "eigrutel-bibliotheque",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Offline personal library, in French and English",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node test.cjs && node test-bulk.cjs && node test-fields.cjs && node test-release.cjs && node test-i18n.cjs && node test-workflows.cjs",
+    "format": "prettier --write app.js i18n.js core.js pdf-export.js template.html build.cjs locales/*.json scripts/*.cjs"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0",
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "26.1.0",
+    "prettier": "3.6.2"
+  }
+}
