@@ -2,8 +2,8 @@
 Eigrutel Lab - Atelier d'outils libres pour la bande dessinée
 Programme conçu et développé par Simon Léturgie dans le cadre d'Eigrutel BD Academy.
 Nom : eigrutel-bibliotheque
-Version : 1.0.1
-Date : 28-10-2026
+Version : 1.2.1
+Date : 29-10-2026
 Code : GNU AGPL v3.0 ou version ultérieure.
 Documentation et modèles : CC BY-SA 4.0, sauf mention contraire.
 Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Academy : réservés.
@@ -805,6 +805,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
       }
       .drawer-footer {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         gap: 10px;
         padding: 14px 28px;
@@ -815,6 +816,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
       }
       .drawer-footer > div {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         align-items: center;
       }
@@ -1409,7 +1411,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           transition: none !important;
         }
       }
-      /* 1.0.1: compact header, collapsible navigation and Que sais-je covers. */
+      /* 1.2.1: compact header, collapsible navigation and Que sais-je covers. */
       .sidebar {
         transition:
           transform 0.2s,
@@ -1605,7 +1607,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           font-size: 12px;
         }
       }
-      /* 1.0.1: grouped controls and neutral Personnages palette. */
+      /* 1.2.1: grouped controls and neutral Personnages palette. */
       .content {
         padding: 16px 32px 12px;
         display: flex;
@@ -1845,7 +1847,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           padding: 20px 8px 8px;
         }
       }
-      /* 1.0.1: phone controls and input sizing without disabling pinch zoom. */
+      /* 1.2.1: phone controls and input sizing without disabling pinch zoom. */
       @media (pointer: coarse) {
         .search input {
           font-size: 16px;
@@ -2324,6 +2326,9 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           ><button class="subtle small" id="sidebar-help">
             <span data-icon="help"></span>Mode d’emploi
           </button>
+          <button type="button" class="subtle small" id="optimize-images-btn">
+            Alléger les images
+          </button>
           <button
             type="button"
             class="subtle small language-switch"
@@ -2666,6 +2671,9 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
     </script>
     <script>
       __PDFEXPORT__;
+    </script>
+    <script>
+      __IMAGEOPTIMIZER__;
     </script>
     <script>
       __APP__;

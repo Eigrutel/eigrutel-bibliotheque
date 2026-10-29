@@ -8,6 +8,7 @@ Le code de l’application est distribué sous GNU AGPL v3.0 ou ultérieure. Cet
 | @pdf-lib/fontkit | 1.1.1 | MIT — Devon Govett et contributeurs; adaptation pdf-lib par Andrew Dillon; notices dans `vendor/fontkit-LICENSE.md` et `vendor/fontkit-README.md` |
 | DejaVu Sans et DejaVu Sans Bold | 2.37 | Licence DejaVu/Bitstream Vera, conditions de redistribution dans `vendor/DejaVu-LICENSE.txt` |
 | Acorn (outil de compilation) | 8.15.0 | MIT, disponible avec le paquet npm; outil de développement seulement |
+| @napi-rs/canvas (encodage des images dans les tests) | 0.1.100 | MIT, outil de développement seulement, absent du HTML |
 | jsdom (simulation DOM pour les tests) | 26.1.0 | MIT, outil de développement seulement |
 | fake-indexeddb (simulation du stockage pour les tests) | 6.2.5 | Apache-2.0, outil de développement seulement |
 | Prettier (formatage) | 3.6.2 | MIT, disponible avec le paquet npm; outil de développement seulement |

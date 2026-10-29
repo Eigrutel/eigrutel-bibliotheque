@@ -1,4 +1,4 @@
-# Bibliothèque 1.0.1
+# Bibliothèque 1.2.1
 
 Application personnelle de bibliothèque, en français et en anglais. Livres, collections, couvertures, notes illustrées, prêts, filtres, modifications groupées et exports PDF. Aucun livre ni image personnelle n’est fourni.
 
@@ -24,7 +24,7 @@ Une nouvelle installation démarre sans livre ni collection. Le panneau gauche a
 
 Les bibliothèques déjà enregistrées par les versions 0.x sont conservées. La version 1.0 ne réinjecte aucune collection. Le format JSON reste `eigrutel-bibliotheque`, `schemaVersion: 1`, commun aux deux langues.
 
-Le changement de langue conserve la bibliothèque sur l’appareil. Les données restent dans IndexedDB. Il n’y a pas de synchronisation entre appareils, ni de stockage distant des livres. Les sauvegardes JSON incluent notes, images originales et réglages. Elles ne sont pas chiffrées.
+Le changement de langue conserve la bibliothèque sur l’appareil. Les données restent dans IndexedDB. Il n’y a pas de synchronisation entre appareils, ni de stockage distant des livres. Les sauvegardes JSON incluent notes, images présentes dans la bibliothèque et réglages. Elles ne sont pas chiffrées.
 
 Les trois choix d’import sont : ajouter les nouvelles fiches sans écraser les anciennes (défaut), mettre à jour les fiches correspondantes, ou restaurer la bibliothèque/la collection du fichier. Les correspondances JSON utilisent les identifiants, pas seulement le titre. Deux copies distinctes peuvent partager le même titre. Une copie avant import permet d’annuler le dernier import sur le même appareil.
 
@@ -84,4 +84,20 @@ Dans une fiche enregistrée, « Livre rendu » enregistre immédiatement le retr
 
 Le nom de bibliothèque est enregistré avant chaque export JSON, collection ou PDF, y compris après un clic immédiat ou un raccourci clavier. Les sauvegardes importées dans une bibliothèque sans nom lui transmettent leur nom.
 
-`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.0.1 est indiqué dans le mode d’emploi.
+`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.2.1 est indiqué dans le mode d’emploi.
+
+## Images et sauvegardes, version 1.2.1
+
+L’ajout d’une couverture ou d’une image de notes optimise automatiquement la copie stockée. Les couvertures sont limitées à 600 px de haut (et 960 px de large pour les panoramas), les notes à 1 600 px sur le grand côté. Les images plus petites ne sont jamais agrandies. PNG, WebP et JPEG sont comparés selon le format d’origine ; la transparence est conservée. Une copie plus lourde est refusée. Les GIF et les animations PNG/WebP sont conservés. Une image déjà optimisée à cette taille n’est pas recompressée.
+
+Le poids avant/après est affiché dans l’éditeur. La sauvegarde JSON contient les copies optimisées, pas les originaux. Conserver les fichiers originaux à part si nécessaire.
+
+Pour les images déjà présentes ou importées par JSON : panneau gauche → **Alléger les images** → **Calculer le gain**. L’aperçu affiche les poids, le gain estimé du JSON et les éventuelles images illisibles, conservées intactes. Annuler ne modifie rien. **Remplacer les images** applique le résultat à toute la bibliothèque, corbeille comprise. La confirmation précise que l’historique Annuler/Rétablir et la copie précédant le dernier import sont effacés, afin de ne pas conserver les images lourdes en double. Les sauvegardes déjà téléchargées ne sont jamais modifiées.
+
+Le format JSON reste compatible avec les versions précédentes et sa limite d’import reste de 150 Mo. L’optimisation ne garantit pas qu’une bibliothèque passe sous cette limite. Les traitements sont séquentiels. Les tests d’encodage utilisent des images synthétiques ; les tests d’interface exécutent le HTML avec DOM et IndexedDB simulés. Un essai matériel sur iPad reste à faire.
+
+## Dupliquer une fiche
+
+Le bouton **Dupliquer**, à côté de **Modifier**, ouvre une copie dans l’éditeur. Tous les champs, les notes et les images sont repris ; le titre reçoit « (copie) ». Les identifiants de la fiche et de ses images sont renouvelés, et les liens dans les notes suivent les nouvelles images. La fiche d’origine reste intacte. **Enregistrer la fiche** ajoute le nouveau livre ; **Annuler** ne crée rien. La duplication est disponible pour les livres hors corbeille.
+
+En mode sélection, **Dupliquer** se trouve entre **Retirer** et **Modifier la sélection**. Il ajoute une copie de chaque fiche sélectionnée. Les copies deviennent la nouvelle sélection pour permettre une modification groupée immédiate. La duplication groupée correspond à une seule action dans Annuler/Rétablir, dans les limites habituelles de l’historique.

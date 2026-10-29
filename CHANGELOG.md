@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1 - 2026-10-29
+
+- Added Duplicate between Remove and Edit selection, for one or more selected books.
+- Copies become the new selection and share one Undo/Redo action.
+
+## 1.2.0 - 2026-10-29
+
+- Cover optimisation reduced to 600 px high (60% of the previous dimensions), with a 960 px width limit. Note images keep their 1,600 px limit.
+- Duplicate an existing book into an independent editable draft, including metadata, notes and images. Saving adds the copy; cancelling adds nothing.
+- Existing optimised covers can be reduced again through the image optimisation tool.
+
+## 1.1.0 — 2026-10-29
+
+- Automatic optimisation of newly added covers and note images, without upscaling.
+- Existing-library optimisation with size preview, cancellation and explicit replacement.
+- Transparent images retained; GIF and PNG/WebP animations kept intact; larger outputs rejected.
+- JSON image IDs and note links preserved; new tests cover actual encoding and the delivered HTML.
+- Supplied favicon and introduction page integrated.
+
 ## 1.0.1 — 2026-10-28
 
 - Library naming is serialized and awaited by every export, including immediate clicks and keyboard shortcuts.

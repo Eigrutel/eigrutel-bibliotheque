@@ -1,4 +1,4 @@
-/* Bibliothèque 1.0.1 | 2026-10-28 | Eigrutel Lab
+/* Bibliothèque 1.2.1 | 2026-10-29 | Eigrutel Lab
  * Code: GNU AGPL-3.0-or-later. Docs/models: CC BY-SA 4.0.
  * Eigrutel names and logos reserved. User content retains its own rights.
  */
@@ -103,6 +103,29 @@
       updatedAt: new Date().toISOString(),
       ...p,
     };
+  }
+  // A duplicate is an independent draft. Remap embedded image references together.
+  function duplicateBook(source) {
+    const fresh = book();
+    const copy = book({
+      ...clone(source),
+      id: fresh.id,
+      createdAt: fresh.createdAt,
+      updatedAt: fresh.updatedAt,
+    });
+    delete copy.deletedAt;
+    const imageIds = new Map();
+    copy.images.forEach((image, index) => {
+      const id = "img_" + copy.id + "_" + index;
+      imageIds.set(image.id, id);
+      image.id = id;
+    });
+    copy.notes = copy.notes.replace(
+      /\]\(attachment:([^\)]+)\)/g,
+      (match, id) =>
+        imageIds.has(id) ? "](attachment:" + imageIds.get(id) + ")" : match,
+    );
+    return copy;
   }
   function validate(obj) {
     if (obj.libraryName !== undefined && typeof obj.libraryName !== "string")
@@ -501,6 +524,7 @@
     hash,
     key,
     book,
+    duplicateBook,
     validate,
     merge,
     collectionBackup,

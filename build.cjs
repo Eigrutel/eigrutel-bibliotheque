@@ -11,6 +11,7 @@ const values = {
   ),
   CORE: read("core.js"),
   APP: read("app.js"),
+  IMAGEOPTIMIZER: read("image-optimizer.js"),
   PDFEXPORT: read("pdf-export.js"),
   PDFLIB: read("vendor/pdf-lib.min.js"),
   FONTKIT: read("vendor/fontkit.min.js"),
