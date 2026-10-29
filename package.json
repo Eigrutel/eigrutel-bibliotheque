@@ -1,12 +1,12 @@
 {
   "name": "eigrutel-bibliotheque",
-  "version": "1.2.1",
+  "version": "1.3.2",
   "private": true,
   "description": "Offline personal library, in French and English",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "node build.cjs",
-    "test": "node test.cjs && node test-bulk.cjs && node test-fields.cjs && node test-release.cjs && node test-i18n.cjs && node test-workflows.cjs && node test-image-optimizer.cjs && node test-image-workflows.cjs && node test-duplicate-workflows.cjs",
+    "test": "node test.cjs && node test-bulk.cjs && node test-fields.cjs && node test-release.cjs && node test-i18n.cjs && node test-workflows.cjs && node test-image-optimizer.cjs && node test-image-workflows.cjs && node test-duplicate-workflows.cjs && node test-library-130.cjs && node test-palette-workflows.cjs",
     "format": "prettier --write app.js image-optimizer.js i18n.js core.js pdf-export.js template.html build.cjs locales/*.json scripts/*.cjs"
   },
   "devDependencies": {

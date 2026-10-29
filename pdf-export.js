@@ -6,13 +6,16 @@ const LibraryPDF = {
     notesOnly = false,
     libraryName = "",
     labels = (value) => value,
+    onProgress = () => {},
   ) {
     const { PDFDocument, rgb, degrees } = PDFLib,
       C = LibCore,
       pdf = await PDFDocument.create();
+    const books = Array.isArray(book) ? book : [book];
+    if (!books.length) throw Error(I18n.t("Aucune fiche sélectionnée."));
     pdf.setTitle(
       (libraryName ? libraryName + " - " : "") +
-        book.title +
+        (books.length === 1 ? books[0].title : I18n.t("Sélection de livres")) +
         (notesOnly ? " - Notes" : I18n.t(" - Fiche complète")),
     );
     pdf.setAuthor(libraryName || I18n.t("Bibliothèque"));
@@ -214,97 +217,106 @@ const LibraryPDF = {
       if (node.style.backgroundColor) next.bg = node.style.backgroundColor;
       return [...node.childNodes].flatMap((n) => runs(n, next));
     }
-    newPage();
-    await plain(
-      notesOnly ? I18n.t("NOTES DE LECTURE") : I18n.t("FICHE DU LIVRE"),
-      9,
-      {
-        bold: true,
-        color: "#004d65",
-      },
-    );
-    y -= 8 * density;
-    await plain(book.title, 23, { bold: true });
-    if (!notesOnly) {
-      const cover = book.images.find((im) => im.role === "cover");
-      if (cover) await image(cover.data, "", true);
-      const rows = [
-        [I18n.t("Bibliothèque"), libraryName],
-        ["Collection", book.collection],
-        [I18n.t("Numéro"), book.number],
-        [I18n.t("Auteur(s)"), book.author],
-        [I18n.t("Éditeur"), book.publisher],
-        [I18n.t("Année / édition"), book.year],
-        ["ISBN", book.isbn],
-        [I18n.t("Nombre de pages"), book.pages],
-        [I18n.t("Langue"), book.language],
-        [I18n.t("État"), labels(book.condition)],
-        [I18n.t("Étagère"), book.shelf],
-        [I18n.t("Emplacement"), book.location],
-        ["Type", book.bookType],
-        [I18n.t("Lecture"), labels(book.status)],
-        [I18n.t("Favori"), book.favorite ? I18n.t("Oui") : I18n.t("Non")],
-        [
-          I18n.t("Couleurs"),
-          (book.colors || [])
-            .map((id) => palette.find((p) => p.id === id)?.name || id)
-            .join(", "),
-        ],
-        [I18n.t("Domaines / thématiques"), (book.themes || []).join(", ")],
-        [I18n.t("Prêt à"), book.loanName],
-        [
-          I18n.t("Date de prêt"),
-          book.loanDate ? book.loanDate.split("-").reverse().join("/") : "",
-        ],
-      ];
-      for (const [label, value] of rows)
-        if (value)
-          await text(
-            [{ text: label + " : ", bold: true }, { text: String(value) }],
-            10,
-            0,
-            4,
-          );
-      y -= 12 * density;
-      room(50 * density);
-      await plain(I18n.t("Mes notes"), 16, { bold: true });
-    }
-    const root = document.createElement("div");
-    root.innerHTML = C.renderNotes(book.notes, book.images);
-    const seen = new Set();
-    async function block(node) {
-      if (node.tagName === "FIGURE") {
-        const id = node.querySelector("[data-image]")?.dataset.image,
-          im = book.images.find((x) => x.id === id);
-        if (im) {
-          await image(im.data, im.caption || "");
-          seen.add(id);
+    for (const [bookIndex, book] of books.entries()) {
+      newPage();
+      await plain(
+        notesOnly ? I18n.t("NOTES DE LECTURE") : I18n.t("FICHE DU LIVRE"),
+        9,
+        {
+          bold: true,
+          color: "#004d65",
+        },
+      );
+      y -= 8 * density;
+      await plain(book.title, 23, { bold: true });
+      if (notesOnly && book.number)
+        await plain(book.number, 12, { bold: true });
+      if (!notesOnly) {
+        const cover = book.images.find((im) => im.role === "cover");
+        if (cover) await image(cover.data, "", true);
+        const rows = [
+          [I18n.t("Bibliothèque"), libraryName],
+          ["Collection", book.collection],
+          [I18n.t("N° et sous-titre"), book.number],
+          [I18n.t("Auteur(s)"), book.author],
+          [I18n.t("Éditeur"), book.publisher],
+          [I18n.t("Année / édition"), book.year],
+          ["ISBN", book.isbn],
+          [I18n.t("Nombre de pages"), book.pages],
+          [I18n.t("Langue"), book.language],
+          [I18n.t("État"), labels(book.condition)],
+          [I18n.t("Étagère"), book.shelf],
+          [I18n.t("Emplacement"), book.location],
+          ["Type", book.bookType],
+          [I18n.t("Lecture"), labels(book.status)],
+          [I18n.t("Favori"), book.favorite ? I18n.t("Oui") : I18n.t("Non")],
+          [
+            I18n.t("Couleurs"),
+            (book.colors || [])
+              .map((id) => palette.find((p) => p.id === id)?.name || id)
+              .join(", "),
+          ],
+          [I18n.t("Domaines / thématiques"), (book.themes || []).join(", ")],
+          [I18n.t("Prêt à"), book.loanName],
+          [
+            I18n.t("Date de prêt"),
+            book.loanDate ? book.loanDate.split("-").reverse().join("/") : "",
+          ],
+        ];
+        for (const [label, value] of rows)
+          if (value)
+            await text(
+              [{ text: label + " : ", bold: true }, { text: String(value) }],
+              10,
+              0,
+              4,
+            );
+        y -= 12 * density;
+        room(50 * density);
+        await plain(I18n.t("Mes notes"), 16, { bold: true });
+      }
+      const root = document.createElement("div");
+      root.innerHTML = C.renderNotes(book.notes, book.images);
+      const seen = new Set();
+      async function block(node) {
+        if (node.tagName === "FIGURE") {
+          const id = node.querySelector("[data-image]")?.dataset.image,
+            im = book.images.find((x) => x.id === id);
+          if (im) {
+            await image(im.data, im.caption || "");
+            seen.add(id);
+          }
+          return;
         }
-        return;
+        if (node.tagName === "UL") {
+          for (const li of node.children)
+            await text([{ text: "• " }, ...runs(li)], 11, 12);
+          return;
+        }
+        if (node.classList.contains("note-space")) {
+          y -= 7 * density;
+          return;
+        }
+        const heading = /^H[1-6]$/.test(node.tagName);
+        if (heading) room(70 * density);
+        await text(
+          runs(node, heading ? { bold: true } : {}),
+          heading ? 15 : 11,
+        );
       }
-      if (node.tagName === "UL") {
-        for (const li of node.children)
-          await text([{ text: "• " }, ...runs(li)], 11, 12);
-        return;
+      for (const node of root.children) await block(node);
+      const detached = book.images.filter(
+        (im) => im.role !== "cover" && !seen.has(im.id),
+      );
+      if (!book.notes.trim() && !detached.length)
+        await plain(I18n.t("Aucune note."), 11, { italic: true });
+      if (detached.length) {
+        room(60 * density);
+        await plain(I18n.t("Images jointes"), 14, { bold: true });
+        for (const im of detached) await image(im.data, im.caption || im.name);
       }
-      if (node.classList.contains("note-space")) {
-        y -= 7 * density;
-        return;
-      }
-      const heading = /^H[1-6]$/.test(node.tagName);
-      if (heading) room(70 * density);
-      await text(runs(node, heading ? { bold: true } : {}), heading ? 15 : 11);
-    }
-    for (const node of root.children) await block(node);
-    const detached = book.images.filter(
-      (im) => im.role !== "cover" && !seen.has(im.id),
-    );
-    if (!book.notes.trim() && !detached.length)
-      await plain(I18n.t("Aucune note."), 11, { italic: true });
-    if (detached.length) {
-      room(60 * density);
-      await plain(I18n.t("Images jointes"), 14, { bold: true });
-      for (const im of detached) await image(im.data, im.caption || im.name);
+      onProgress(bookIndex + 1, books.length);
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
     const pages = pdf.getPages();
     for (let i = 0; i < pages.length; i++) {

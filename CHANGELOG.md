@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.2 - 2026-10-29
+
+- Remove colour labels with a cross in the palette editor; used labels show the affected-book count before removal.
+- Save applies palette removals and book assignments together; Cancel discards them and Undo/Redo reverses the saved operation.
+- JSON backups retain removed label IDs so a transfer to another device does not recreate them. Explicit definitions in an older backup can restore a label.
+
+
+## 1.3.1 - 2026-10-29
+
+- JSON imports restore saved colour-label names and colours even when their IDs already exist on the destination device. Full and collection backups include the complete palette.
+- Add/update/collection imports retain local-only labels; legacy files without a palette retain the current palette.
+- Palette Save reads the final displayed values and waits for pending library-name saves.
+- Short Year ↑ / Year ↓ sort choices, with unknown years last in both directions.
+
+
+## 1.3.0 - 2026-10-29
+
+- Compact single-line collection heading above phone controls.
+- Penguin automatic covers use a white middle horizontal third.
+- Natural volume ordering for matching titles and chronological publication-year sorting, with missing years last.
+- Combined No. and subtitle field; compact title, volume/subtitle and author metadata below covers.
+- Library-name autosave, pending-edit recovery and protection against stale metadata in unrelated saves and Undo/Redo.
+- Selected full-record or notes-only PDFs: one combined document with continuous pagination, or a separate download per book.
+
 ## 1.2.1 - 2026-10-29
 
 - Added Duplicate between Remove and Edit selection, for one or more selected books.

@@ -1,4 +1,4 @@
-/* Bibliothèque 1.2.1 | 2026-10-29 | Eigrutel Lab
+/* Bibliothèque 1.3.2 | 2026-10-29 | Eigrutel Lab
  * Code: GNU AGPL-3.0-or-later. Docs/models: CC BY-SA 4.0.
  * Eigrutel names and logos reserved. User content retains its own rights.
  */
@@ -12,6 +12,74 @@
   // Optional cover style: tolerant of case, accents, whitespace, hyphens and ?.
   function isQueSaisJe(name) {
     return norm(name).replace(/[\s?？‐‑–—-]/g, "") === "quesaisje";
+  }
+  function isPenguin(name) {
+    return (
+      norm(name)
+        .trim()
+        .replace(/[\s?？]+/g, "") === "penguin"
+    );
+  }
+  // The historical number field also accepts a subtitle. Its leading number
+  // remains the volume order, regardless of the words following it.
+  function volumeNumber(value) {
+    const match = String(value || "")
+      .trim()
+      .match(/^(?:(?:n[°ºo.]|no\.|tome|vol(?:ume)?\.?)\s*)?(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+  function publicationYear(value) {
+    const match = String(value || "")
+      .trim()
+      .match(/(?:^|\D)(\d{4})(?!\d)/);
+    return match ? Number(match[1]) : null;
+  }
+  function compareBooks(
+    a,
+    b,
+    sort = "title",
+    locale = "fr",
+    collator = new Intl.Collator(locale, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  ) {
+    const title = () => collator.compare(a.title.trim(), b.title.trim());
+    const volume = () => {
+      const x = volumeNumber(a.number),
+        y = volumeNumber(b.number);
+      if (x !== null && y !== null)
+        return x - y || collator.compare(a.number, b.number);
+      if (x !== null) return -1;
+      if (y !== null) return 1;
+      if (!a.number || !b.number) return a.number ? -1 : b.number ? 1 : 0;
+      return collator.compare(a.number, b.number);
+    };
+    if (sort === "updated")
+      return (
+        (b.updatedAt || "").localeCompare(a.updatedAt || "") ||
+        title() ||
+        volume()
+      );
+    if (sort === "year" || sort === "year-desc") {
+      const x = publicationYear(a.year),
+        y = publicationYear(b.year);
+      return (
+        (x === null
+          ? y === null
+            ? 0
+            : 1
+          : y === null
+            ? -1
+            : (x - y) * (sort === "year-desc" ? -1 : 1)) ||
+        title() ||
+        volume()
+      );
+    }
+    if (sort.startsWith("title"))
+      return title() * (sort.endsWith("desc") ? -1 : 1) || volume();
+    if (!a.number || !b.number) return a.number ? -1 : b.number ? 1 : title();
+    return (volume() || title()) * (sort.endsWith("desc") ? -1 : 1);
   }
   function emptyLibrary() {
     return {
@@ -127,7 +195,7 @@
     );
     return copy;
   }
-  function validate(obj) {
+  function validate(obj, fallbackPalette = PALETTE) {
     if (obj.libraryName !== undefined && typeof obj.libraryName !== "string")
       throw Error("Nom de bibliothèque invalide.");
     const libraryName = String(obj.libraryName || "")
@@ -214,17 +282,17 @@
           );
       return book(b);
     });
-    const palette = (Array.isArray(obj.palette) ? obj.palette : PALETTE).map(
-      (p) => {
-        // Correct the unidentified default from 0.1.0, including older backups.
-        // A deliberately renamed/customized repère remains untouched.
-        if (p.id === "…" && p.name === "Repère B (à préciser)")
-          return { ...p, name: "Gris", unconfirmed: false };
-        if (p.id === ".    ." && p.name === "Repère A (à préciser)")
-          return { id: p.id, name: "Orange", hex: "#e5a15d" };
-        return { ...p };
-      },
-    );
+    const palette = (
+      Array.isArray(obj.palette) ? obj.palette : fallbackPalette
+    ).map((p) => {
+      // Correct the unidentified default from 0.1.0, including older backups.
+      // A deliberately renamed/customized repère remains untouched.
+      if (p.id === "…" && p.name === "Repère B (à préciser)")
+        return { ...p, name: "Gris", unconfirmed: false };
+      if (p.id === ".    ." && p.name === "Repère A (à préciser)")
+        return { id: p.id, name: "Orange", hex: "#e5a15d" };
+      return { ...p };
+    });
     if (
       palette.some(
         (p) =>
@@ -234,6 +302,16 @@
       )
     )
       throw Error(tr("Palette invalide."));
+    if (
+      obj.removedPaletteIds !== undefined &&
+      (!Array.isArray(obj.removedPaletteIds) ||
+        obj.removedPaletteIds.some((id) => typeof id !== "string"))
+    )
+      throw Error(tr("Repères retirés invalides."));
+    const defined = new Set(palette.map((p) => p.id));
+    const removedPaletteIds = [...new Set(obj.removedPaletteIds || [])].filter(
+      (id) => !defined.has(id),
+    );
     if (obj.exportScope) {
       if (!["library", "collection"].includes(obj.exportScope.kind))
         throw Error(tr("Périmètre de sauvegarde inconnu."));
@@ -251,7 +329,46 @@
           ),
         );
     }
-    return { ...obj, libraryName, books, palette };
+    return {
+      ...obj,
+      libraryName,
+      books: removeColorAssignments(books, new Set(removedPaletteIds)),
+      palette,
+      removedPaletteIds,
+    };
+  }
+  // A removed label must also disappear from book assignments, including Trash,
+  // otherwise boot would recreate its definition from an orphaned colour ID.
+  function removeColorAssignments(books, removed) {
+    return books.map((b) =>
+      b.colors.some((id) => removed.has(id))
+        ? { ...b, colors: b.colors.filter((id) => !removed.has(id)) }
+        : b,
+    );
+  }
+  function importPalette(out, incoming) {
+    const removed = new Set([
+      ...(out.removedPaletteIds || []),
+      ...(incoming.removedPaletteIds || []),
+    ]);
+    // Importing an explicit definition restores that label, including old backups.
+    for (const p of incoming.palette || []) removed.delete(p.id);
+    out.palette = mergePalette(out.palette, incoming.palette).filter(
+      (p) => !removed.has(p.id),
+    );
+    out.removedPaletteIds = [...removed];
+    out.books = removeColorAssignments(out.books, removed);
+    return out;
+  }
+  // Colour labels are library-wide settings. An imported definition replaces
+  // the matching ID; local-only labels stay available to existing books.
+  function mergePalette(current = [], incoming = []) {
+    const imported = new Map(incoming.map((p) => [p.id, p]));
+    const localIds = new Set(current.map((p) => p.id));
+    return [
+      ...current.map((p) => clone(imported.get(p.id) || p)),
+      ...incoming.filter((p) => !localIds.has(p.id)).map((p) => clone(p)),
+    ];
   }
   function merge(current, incoming, mode = "add") {
     if (mode === "replace") {
@@ -294,9 +411,7 @@
       if (!out.libraryName && incoming.libraryName)
         out.libraryName = incoming.libraryName;
       out.books = [...clone(other), ...clone(incoming.books)];
-      for (const p of incoming.palette || [])
-        if (!out.palette.some((x) => x.id === p.id)) out.palette.push(clone(p));
-      return out;
+      return importPalette(out, incoming);
     }
     const out = clone(current);
     if (!out.libraryName && incoming.libraryName)
@@ -315,9 +430,7 @@
         out.books.push(clone(b));
       }
     }
-    for (const p of incoming.palette || [])
-      if (!out.palette.some((x) => x.id === p.id)) out.palette.push(clone(p));
-    return out;
+    return importPalette(out, incoming);
   }
   const CONDITIONS = ["Neuf", "Bon état", "Occasion", "Défraîchi"];
   const BULK_FIELDS = [
@@ -387,6 +500,7 @@
         state.books.filter((b) => (b.collection || "Sans collection") === name),
       ),
       palette: clone(state.palette),
+      removedPaletteIds: clone(state.removedPaletteIds || []),
     });
   }
 
@@ -507,6 +621,10 @@
   const api = {
     emptyLibrary,
     isQueSaisJe,
+    isPenguin,
+    volumeNumber,
+    publicationYear,
+    compareBooks,
     NO_COLLECTION,
     STATUSES,
     matchesFields,

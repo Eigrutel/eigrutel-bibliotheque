@@ -1,4 +1,4 @@
-# Bibliothèque 1.2.1
+# Bibliothèque 1.3.2
 
 Application personnelle de bibliothèque, en français et en anglais. Livres, collections, couvertures, notes illustrées, prêts, filtres, modifications groupées et exports PDF. Aucun livre ni image personnelle n’est fourni.
 
@@ -84,9 +84,9 @@ Dans une fiche enregistrée, « Livre rendu » enregistre immédiatement le retr
 
 Le nom de bibliothèque est enregistré avant chaque export JSON, collection ou PDF, y compris après un clic immédiat ou un raccourci clavier. Les sauvegardes importées dans une bibliothèque sans nom lui transmettent leur nom.
 
-`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.2.1 est indiqué dans le mode d’emploi.
+`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.3.2 est indiqué dans le mode d’emploi.
 
-## Images et sauvegardes, version 1.2.1
+## Images et sauvegardes, version 1.3.2
 
 L’ajout d’une couverture ou d’une image de notes optimise automatiquement la copie stockée. Les couvertures sont limitées à 600 px de haut (et 960 px de large pour les panoramas), les notes à 1 600 px sur le grand côté. Les images plus petites ne sont jamais agrandies. PNG, WebP et JPEG sont comparés selon le format d’origine ; la transparence est conservée. Une copie plus lourde est refusée. Les GIF et les animations PNG/WebP sont conservés. Une image déjà optimisée à cette taille n’est pas recompressée.
 
@@ -101,3 +101,22 @@ Le format JSON reste compatible avec les versions précédentes et sa limite d�
 Le bouton **Dupliquer**, à côté de **Modifier**, ouvre une copie dans l’éditeur. Tous les champs, les notes et les images sont repris ; le titre reçoit « (copie) ». Les identifiants de la fiche et de ses images sont renouvelés, et les liens dans les notes suivent les nouvelles images. La fiche d’origine reste intacte. **Enregistrer la fiche** ajoute le nouveau livre ; **Annuler** ne crée rien. La duplication est disponible pour les livres hors corbeille.
 
 En mode sélection, **Dupliquer** se trouve entre **Retirer** et **Modifier la sélection**. Il ajoute une copie de chaque fiche sélectionnée. Les copies deviennent la nouvelle sélection pour permettre une modification groupée immédiate. La duplication groupée correspond à une seule action dans Annuler/Rétablir, dans les limites habituelles de l’historique.
+
+## Nouveautés 1.3.2
+
+Sur téléphone, le titre de collection reste sur une seule ligne au-dessus des commandes. Les noms longs sont abrégés visuellement sans modifier leur contenu.
+La collection **Penguin** (sans tenir compte de la casse et des espaces) reçoit une couverture couleur / blanc / couleur en trois bandes horizontales égales. Une image de couverture reste prioritaire.
+
+Le champ historique `number` est conservé dans le JSON et s’intitule **N° et sous-titre**. Il accepte par exemple `2 · La pyramide des tempêtes`. Les anciens fichiers restent compatibles. À titre identique (casse et accents ignorés), le tri alphabétique classe les tomes selon leur numéro initial, puis leur sous-titre. Les titres différents gardent leur ordre alphabétique. Le tri **Année** utilise la première année à quatre chiffres du champ Année / édition ; les valeurs non reconnues sont placées à la fin. Les cartes présentent le titre, le numéro/sous-titre puis l’auteur, sans masquer ce dernier.
+
+Le nom est sauvegardé automatiquement après la saisie et immédiatement avant les exports. Un petit journal local protège une saisie interrompue avant l’enregistrement. Les modifications des livres, des couleurs, la sauvegarde et Annuler/Rétablir conservent le nom actuel. Une restauration de bibliothèque peut le remplacer par celui du fichier restauré. Ces protections ne synchronisent pas des domaines ou appareils différents.
+
+**Sélectionner > Exporter PDF** permet de choisir fiches complètes ou notes uniquement, puis un document unique ou un document par livre. L’ordre suit le tri affiché, sur toutes les pages sélectionnées. Chaque livre commence sur une nouvelle page ; un PDF unique utilise une pagination continue. Les PDF séparés disposent de liens individuels, compatibles avec le téléchargement manuel sur iPad. Leurs noms incluent le nom de la bibliothèque, le titre et le numéro/sous-titre, avec un préfixe unique pour éviter les collisions.
+
+## Repères couleur et tri par année
+
+Les sauvegardes JSON complètes et par collection incluent tous les repères couleur (identifiant, nom et code couleur). À l’import, les définitions du fichier remplacent celles des mêmes repères sur l’appareil. Lors d’un ajout, d’une mise à jour ou d’une restauration de collection, les repères absents du fichier restent disponibles. Les repères sont communs à toute la bibliothèque : leur restauration s’applique aussi aux autres fiches qui les utilisent. Un ancien fichier sans palette conserve les repères actuels.
+
+« Année ↑ » trie de la plus ancienne à la plus récente ; « Année ↓ » effectue le tri inverse. Les années non renseignées restent à la fin.
+
+Chaque repère possède une croix de retrait dans « Mes repères couleur ». S’il est utilisé, un message indique le nombre de livres concernés, corbeille comprise. « Enregistrer » retire le repère et son affectation aux fiches, sans supprimer de livre, de note ou d’image. « Annuler » ferme le panneau sans appliquer les changements. Après enregistrement, Annuler/Rétablir agit sur l’ensemble de cette modification. Les JSON mémorisent les retraits avec le champ facultatif removedPaletteIds, pour qu’ils ne réapparaissent pas sur un autre appareil utilisant la version 1.3.2 ou ultérieure. Un ancien fichier définissant explicitement ce repère peut le rétablir.

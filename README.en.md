@@ -1,4 +1,4 @@
-# Library 1.2.1
+# Library 1.3.2
 
 An offline personal book library, available in French and English. It supports collections, covers, illustrated notes, loans, filters, bulk editing and PDF exports. No personal books or images are bundled.
 
@@ -65,9 +65,9 @@ Book returned in a saved record immediately saves an empty borrower and loan dat
 
 Every JSON, collection and PDF export awaits the library name save, including immediate clicks and keyboard shortcuts. Importing into an unnamed library adopts the backup name.
 
-`test-workflows.cjs` executes the delivered HTML using jsdom and fake-indexeddb: loan clearing, saving, reopening, reloading, export names, import and trash. PDF rendering alone is stubbed in the filename check. This simulation does not replace physical iPad verification. Version 1.2.1 is displayed in the user guide.
+`test-workflows.cjs` executes the delivered HTML using jsdom and fake-indexeddb: loan clearing, saving, reopening, reloading, export names, import and trash. PDF rendering alone is stubbed in the filename check. This simulation does not replace physical iPad verification. Version 1.3.2 is displayed in the user guide.
 
-## Images and backups, version 1.2.1
+## Images and backups, version 1.3.2
 
 New covers are optimised to at most 600 px high (also 960 px wide for panoramas); note images to 1,600 px on the longest side. Small images are never enlarged. PNG, WebP and JPEG candidates are compared where appropriate, preserving transparency. Larger results are rejected. GIF and animated PNG/WebP images remain unchanged. Copies already optimised at the required dimensions are not recompressed. The editor shows before/after sizes; JSON backups contain the optimised copies, not originals.
 
@@ -80,3 +80,21 @@ The JSON schema remains compatible, with the existing 150 MB import limit. Optim
 **Duplicate**, next to **Edit**, opens an editable copy. It keeps all fields, notes and images and adds “(copy)” to the title. The book and its images receive new IDs, with embedded note references updated to match. The original is unchanged. **Save book** adds the new entry; **Cancel** creates nothing. Duplication is available for books outside the trash.
 
 In selection mode, **Duplicate** appears between **Remove** and **Edit selection**. It adds one copy per selected book and selects the copies for immediate bulk editing. The group is a single Undo/Redo action, subject to the usual history limits.
+
+## Changes in 1.3.2
+
+On phones the collection heading occupies one compact line above the controls. Long headings are visually truncated without changing their content. **Penguin** collections receive three equal horizontal colour / white / colour bands; uploaded covers take priority.
+
+The existing JSON `number` field is retained and labelled **No. and subtitle**. Matching titles are ordered by their leading volume number, then subtitle; different titles remain alphabetical. The chronological **Year** sort uses the first four-digit year in Year / edition, with unrecognised or missing years last. Cards show title, number/subtitle and author together.
+
+The library name is automatically saved after typing and flushed before exports. A local pending-edit journal recovers interrupted edits. Unrelated saves and Undo/Redo preserve the current name; explicit library restoration can replace it with the imported name. Devices and domains remain independent.
+
+**Select > Export PDF** offers full records or notes only, combined or one file per book. Selected books follow the current sort across all pages. Every book starts on a new page and combined documents use continuous pagination. Separate files have explicit download links for iPad, with unique filenames including the library name, title and volume/subtitle.
+
+## Colour labels and year sorting
+
+Full and collection JSON backups include all colour labels (ID, name and colour code). Import restores the file’s definitions for matching IDs. Adding, updating or restoring a collection retains local-only labels. Labels are shared across the library, so restoring one also updates other books using it. Legacy files without a palette keep the current palette.
+
+Year ↑ sorts oldest first; Year ↓ sorts newest first. Missing years stay last in either direction.
+
+Each colour label has a remove cross in My colour labels. Used labels show the number of affected books, including Trash. Save removes the label and its record assignments without deleting books, notes or images. Cancel discards the draft. After saving, Undo/Redo reverses the whole change. JSON backups remember removals in the optional removedPaletteIds field so they do not reappear on another device running 1.3.2 or later. An older file explicitly defining a removed label can restore it.

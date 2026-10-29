@@ -2,7 +2,7 @@
 Eigrutel Lab - Atelier d'outils libres pour la bande dessinée
 Programme conçu et développé par Simon Léturgie dans le cadre d'Eigrutel BD Academy.
 Nom : eigrutel-bibliotheque
-Version : 1.2.1
+Version : 1.3.2
 Date : 29-10-2026
 Code : GNU AGPL v3.0 ou version ultérieure.
 Documentation et modèles : CC BY-SA 4.0, sauf mention contraire.
@@ -1127,6 +1127,12 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         flex: 1;
         min-width: 0;
       }
+      .palette-row [data-remove-palette] {
+        flex: 0 0 40px;
+        width: 40px;
+        height: 40px;
+        padding: 8px;
+      }
       .toast {
         position: fixed;
         bottom: 24px;
@@ -1411,7 +1417,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           transition: none !important;
         }
       }
-      /* 1.2.1: compact header, collapsible navigation and Que sais-je covers. */
+      /* 1.3.2: compact header, collapsible navigation and Que sais-je covers. */
       .sidebar {
         transition:
           transform 0.2s,
@@ -1607,7 +1613,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           font-size: 12px;
         }
       }
-      /* 1.2.1: grouped controls and neutral Personnages palette. */
+      /* 1.3.2: grouped controls and neutral Personnages palette. */
       .content {
         padding: 16px 32px 12px;
         display: flex;
@@ -1847,7 +1853,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           padding: 20px 8px 8px;
         }
       }
-      /* 1.2.1: phone controls and input sizing without disabling pinch zoom. */
+      /* 1.3.2: phone controls and input sizing without disabling pinch zoom. */
       @media (pointer: coarse) {
         .search input {
           font-size: 16px;
@@ -2221,6 +2227,128 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         text-decoration: none;
         font-weight: 600;
       }
+
+      /* Compact book metadata: title, volume/subtitle, then author. */
+      .book-card .cover {
+        margin-bottom: 10px;
+      }
+      .book-card h3 {
+        margin: 0 0 3px;
+        line-height: 1.3;
+      }
+      .book-card .card-number,
+      .book-card .card-author {
+        margin: 2px 0;
+        font-size: 11px;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+      }
+      .book-card .card-author + .badge,
+      .book-card .card-number + .badge {
+        margin-top: 5px;
+      }
+      .faux-cover.penguin {
+        background: linear-gradient(
+          to bottom,
+          var(--cover-color, #ded3bc) 0%,
+          var(--cover-color, #ded3bc) 33.333333%,
+          #ffffff 33.333333%,
+          #ffffff 66.666667%,
+          var(--cover-color, #ded3bc) 66.666667%,
+          var(--cover-color, #ded3bc) 100%
+        );
+      }
+      @media (max-width: 560px) {
+        .topline {
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr);
+          gap: 4px;
+          align-items: center;
+        }
+        .topline .title-group {
+          display: contents;
+        }
+        .topline .heading {
+          grid-column: 1 / -1;
+          grid-row: 1;
+          min-width: 0;
+        }
+        .topline .heading h1 {
+          font-size: 15px;
+          line-height: 1.3;
+          letter-spacing: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          overflow-wrap: normal;
+          margin: 0 0 2px;
+        }
+        .topline #menu-btn {
+          grid-column: 1;
+          grid-row: 2;
+        }
+        .topline .actions {
+          grid-column: 2;
+          grid-row: 2;
+          width: 100%;
+          min-width: 0;
+          gap: 2px;
+          justify-content: space-between;
+        }
+        .topline .actions button {
+          min-width: 34px;
+          padding: 6px;
+        }
+        .topline .actions .icon {
+          width: 34px;
+        }
+        .results-line {
+          gap: 8px;
+        }
+        .results-line > span {
+          flex: 1;
+          min-width: 0;
+        }
+        .results-line > div {
+          flex: 0 0 54%;
+          min-width: 0;
+        }
+        .results-line select {
+          width: 100%;
+          min-width: 0;
+          text-overflow: ellipsis;
+        }
+      }
+      .pdf-choice {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 8px 0;
+        font-weight: 400;
+      }
+      #selection-pdf-form fieldset {
+        border: 1px solid var(--line);
+        padding: 12px;
+        margin: 12px 0;
+        border-radius: 8px;
+        min-width: 0;
+      }
+      #selection-pdf-form input[type="radio"] {
+        width: auto;
+        min-height: auto;
+      }
+      .selection-pdf-file {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .selection-pdf-file strong {
+        flex-basis: 100%;
+        overflow-wrap: anywhere;
+      }
     </style>
   </head>
   <body>
@@ -2583,6 +2711,8 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
               <option value="number-desc">Numéro décroissant</option>
               <option value="title">Titre de A à Z</option>
               <option value="title-desc">Titre de Z à A</option>
+              <option value="year">Année ↑</option>
+              <option value="year-desc">Année ↓</option>
               <option value="updated">Dernières modifications</option>
             </select>
           </div>
