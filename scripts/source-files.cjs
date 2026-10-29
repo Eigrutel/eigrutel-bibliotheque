@@ -6,6 +6,7 @@ const sourceFiles = [
   "package-lock.json",
   "build.cjs",
   "app.js",
+  "image-optimizer.js",
   "i18n.js",
   "core.js",
   "pdf-export.js",
@@ -24,6 +25,9 @@ const sourceFiles = [
   "test-release.cjs",
   "test-i18n.cjs",
   "test-workflows.cjs",
+  "test-image-optimizer.cjs",
+  "test-image-workflows.cjs",
+  "test-duplicate-workflows.cjs",
 ];
 for (const dir of ["scripts", "locales", "vendor", "favicon"])
   for (const name of fs.readdirSync(dir).sort())
