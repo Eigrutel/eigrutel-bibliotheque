@@ -65,7 +65,7 @@ const HISTORY_LIMIT = 30,
   HISTORY_ENTRY_LIMIT = 12 * 1024 * 1024;
 let incoming = null,
   contentFilter = "";
-const pageSize = 50;
+const pageSize = 100;
 const channel =
   typeof BroadcastChannel === "function"
     ? new BroadcastChannel("eigrutel-bibliotheque")
@@ -103,8 +103,7 @@ const badges = (themes) =>
         "</span>",
     )
     .join("");
-const hasNotes = (b) =>
-  !!b.notes.replace(/!\[[^\]]*\]\(attachment:[^)]+\)/g, "").trim();
+const hasNotes = C.hasNotes;
 const plural = (n, s, p = s + "s") =>
   n + " " + ((locale.startsWith("en") ? n !== 1 : n > 1) ? p : s);
 const stamp = () => new Date().toLocaleDateString("sv-SE");
@@ -118,86 +117,252 @@ function backupBaseName() {
   const slug = librarySlug();
   return "bibliotheque" + (slug ? "_" + slug : "");
 }
-// Name edits have a small synchronous recovery journal, separate from book data.
-// This survives closing a mobile tab before blur or the IndexedDB write completes.
+// Same persistence strategy as Boussole: two durable, timestamped copies,
+// immediate writes on edits, restoration on return, and no writes on teardown.
+// Only the name is replicated; large book/image data stays in IndexedDB.
 const nameJournalKey = "eigrutel-bibliotheque-name-draft-v1";
+const nameReplicaKey = "eigrutel-bibliotheque-name-v2";
 let libraryNameWrites = Promise.resolve(),
+  nameReplicaWrites = Promise.resolve(),
+  nameSnapshot = null,
   pendingLibraryName = null,
-  nameSaveTimer;
+  nameSaveTimer,
+  nameRecovery = null,
+  nameReady = false,
+  namePageActive = true;
 const commitIdleWaiters = [];
 function waitForCommitIdle() {
   return busy
     ? new Promise((resolve) => commitIdleWaiters.push(resolve))
     : Promise.resolve();
 }
+function nameTime(record) {
+  const value = Date.parse(record?.updatedAt || "");
+  return Number.isFinite(value) ? value : 0;
+}
+function validNameRecord(value) {
+  if (
+    !value ||
+    value.version !== 2 ||
+    typeof value.name !== "string" ||
+    value.name.length > 80 ||
+    !nameTime(value)
+  )
+    return null;
+  return { version: 2, name: value.name.trim(), updatedAt: value.updatedAt };
+}
+function readLocalName() {
+  try {
+    return validNameRecord(
+      JSON.parse(localStorage.getItem(nameReplicaKey) || "null"),
+    );
+  } catch {
+    return null;
+  }
+}
+function mainNameRecord(value) {
+  if (!value || typeof value.libraryName !== "string") return null;
+  const name = value.libraryName.trim().slice(0, 80);
+  const dated = validNameRecord({
+    version: 2,
+    name,
+    updatedAt: value.libraryNameUpdatedAt,
+  });
+  // A legacy nonempty name is useful; an undated empty field is not an edit.
+  return dated || (name ? { version: 2, name, updatedAt: "" } : null);
+}
+function newNameRecord(value) {
+  const latest = Math.max(
+    nameTime(nameSnapshot),
+    nameTime(readLocalName()),
+    nameTime(mainNameRecord(state)),
+  );
+  return {
+    version: 2,
+    name: String(value).trim().slice(0, 80),
+    updatedAt: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
+  };
+}
+function writeLocalName(record) {
+  try {
+    if (nameTime(readLocalName()) <= nameTime(record))
+      localStorage.setItem(nameReplicaKey, JSON.stringify(record));
+  } catch {} // The independent IndexedDB copy is still attempted.
+}
+function writeNameReplica(record) {
+  writeLocalName(record);
+  const operation = nameReplicaWrites
+    .catch(() => {})
+    .then(async () => {
+      if (!db) return false;
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("state", "readwrite"),
+            store = tx.objectStore("state");
+          const request = store.get(nameReplicaKey);
+          request.onsuccess = () => {
+            if (nameTime(validNameRecord(request.result)) <= nameTime(record))
+              store.put(record, nameReplicaKey);
+          };
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  nameReplicaWrites = operation;
+  return operation;
+}
 function rememberNameDraft(value) {
-  pendingLibraryName = String(value).trim().slice(0, 80);
+  const name = String(value).trim().slice(0, 80);
+  if (!nameSnapshot || nameSnapshot.name !== name)
+    nameSnapshot = newNameRecord(name);
+  pendingLibraryName = name;
+  writeNameReplica(nameSnapshot);
+  // Compatibility/recovery for edits made by earlier releases.
   try {
     localStorage.setItem(
       nameJournalKey,
       JSON.stringify({
-        name: pendingLibraryName,
+        name,
         baseName: state?.libraryName || "",
+        updatedAt: nameSnapshot.updatedAt,
       }),
     );
-  } catch {} // IndexedDB remains the primary store when localStorage is unavailable.
+  } catch {}
+  return nameSnapshot;
 }
-function clearNameDraft(name) {
-  if (pendingLibraryName !== name) return;
+function clearNameDraft(record) {
+  if (
+    nameSnapshot?.updatedAt !== record.updatedAt ||
+    pendingLibraryName !== record.name
+  )
+    return;
   pendingLibraryName = null;
   try {
-    const record = JSON.parse(localStorage.getItem(nameJournalKey) || "null");
-    if (record?.name === name) localStorage.removeItem(nameJournalKey);
+    const journal = JSON.parse(localStorage.getItem(nameJournalKey) || "null");
+    if (journal?.name === record.name && nameTime(journal) <= nameTime(record))
+      localStorage.removeItem(nameJournalKey);
   } catch {}
+  // The two durable replicas are deliberately kept after a successful save.
 }
-function saveLibraryName(value) {
+function acceptCommittedName(record) {
+  if (!nameSnapshot || nameTime(record) >= nameTime(nameSnapshot))
+    nameSnapshot = record;
+  writeNameReplica(record);
+}
+function flushLibraryName(record = nameSnapshot) {
   clearTimeout(nameSaveTimer);
-  const name = String(value).trim().slice(0, 80);
-  rememberNameDraft(name);
+  if (!record) return libraryNameWrites;
   const operation = libraryNameWrites
     .catch(() => {})
     .then(async () => {
       await waitForCommitIdle();
-      if (state.libraryName !== name)
+      const latest =
+        nameTime(nameSnapshot) > nameTime(record) ? nameSnapshot : record;
+      if (
+        state.libraryName !== latest.name ||
+        state.libraryNameUpdatedAt !== latest.updatedAt
+      )
         await commit(
-          { ...state, libraryName: name },
-          { setLibraryName: true, history: false },
+          { ...state, libraryName: latest.name },
+          { setLibraryName: true, nameRecord: latest, history: false },
         );
-      clearNameDraft(name);
-      if ($("#library-name").value.trim().slice(0, 80) === name)
-        $("#library-name").value = name;
-      return name;
+      clearNameDraft(latest);
+      if ($("#library-name").value.trim().slice(0, 80) === latest.name)
+        $("#library-name").value = latest.name;
+      await nameReplicaWrites;
+      return latest.name;
     });
   libraryNameWrites = operation;
   return operation;
 }
-async function ensureLibraryNameSaved() {
-  return saveLibraryName($("#library-name").value);
+function saveLibraryName(value) {
+  return flushLibraryName(rememberNameDraft(value));
 }
-async function recoverLibraryName() {
-  let record;
-  try {
-    record = JSON.parse(localStorage.getItem(nameJournalKey) || "null");
-  } catch {
-    return;
-  }
-  if (
-    !record ||
-    typeof record.name !== "string" ||
-    typeof record.baseName !== "string"
-  )
-    return;
-  // Never override a different name restored by an import or another tab.
-  if (
-    record.baseName !== (state.libraryName || "") &&
-    record.name !== state.libraryName
-  ) {
+async function ensureLibraryNameSaved() {
+  // An export must never turn a transient empty DOM field into an intentional
+  // deletion. Only input/change handlers (or a confirmed import) change the model.
+  if (!nameSnapshot && state.libraryName)
+    nameSnapshot = newNameRecord(state.libraryName);
+  const result = await flushLibraryName();
+  if (!$("#library-name").value.trim() && nameSnapshot?.name)
+    $("#library-name").value = nameSnapshot.name;
+  return result;
+}
+function recoverLibraryName() {
+  if (nameRecovery) return nameRecovery;
+  nameRecovery = (async () => {
+    await libraryNameWrites.catch(() => {});
+    await waitForCommitIdle();
+    let indexed = null,
+      persisted = state;
+    if (db) {
+      const results = await Promise.allSettled([load(nameReplicaKey), load()]);
+      if (results[0].status === "fulfilled")
+        indexed = validNameRecord(results[0].value);
+      if (results[1].status === "fulfilled" && results[1].value)
+        persisted = results[1].value;
+    }
+    const local = readLocalName();
+    const candidates = [
+      nameSnapshot,
+      local,
+      indexed,
+      mainNameRecord(persisted),
+      mainNameRecord(state),
+    ].filter(Boolean);
     try {
-      localStorage.removeItem(nameJournalKey);
+      const journal = JSON.parse(
+        localStorage.getItem(nameJournalKey) || "null",
+      );
+      if (
+        journal &&
+        typeof journal.name === "string" &&
+        typeof journal.baseName === "string" &&
+        (journal.baseName === (persisted.libraryName || "") ||
+          journal.name === persisted.libraryName)
+      ) {
+        // Legacy journals have no date. Migrate only without newer durable copies.
+        if (nameTime(journal))
+          candidates.push({
+            version: 2,
+            name: journal.name.trim().slice(0, 80),
+            updatedAt: journal.updatedAt,
+          });
+        else if (!local && !indexed)
+          candidates.push(newNameRecord(journal.name));
+      }
     } catch {}
-    return;
-  }
-  await saveLibraryName(record.name);
+    let best = null;
+    for (const candidate of candidates) {
+      if (
+        !best ||
+        nameTime(candidate) > nameTime(best) ||
+        (nameTime(candidate) === nameTime(best) && candidate.name && !best.name)
+      )
+        best = candidate;
+    }
+    if (best) {
+      if (!nameTime(best)) best = newNameRecord(best.name);
+      nameSnapshot = best;
+      writeNameReplica(best);
+      // Existing cross-tab revision checks still protect the books.
+      if ((persisted.revision || 0) === (state.revision || 0))
+        await flushLibraryName(best);
+    }
+    $("#library-name").value = nameSnapshot?.name ?? state.libraryName ?? "";
+    $("#app-name").textContent = $("#library-name").value;
+    document.title =
+      ($("#library-name").value ? $("#library-name").value + " · " : "") +
+      I18n.t("Bibliothèque");
+  })().finally(() => {
+    nameRecovery = null;
+  });
+  return nameRecovery;
 }
 function syncLibraryName(previous) {
   const input = $("#library-name");
@@ -305,7 +470,15 @@ async function commit(next, opts = {}) {
   const expected = state?.revision || 0;
   next = C.clone(next);
   // Book edits, appearance, backup timestamps and Undo must not restore an old name.
-  if (state && !opts.setLibraryName) next.libraryName = state.libraryName || "";
+  let committedName = null;
+  if (state && !opts.setLibraryName) {
+    next.libraryName = state.libraryName || "";
+    next.libraryNameUpdatedAt = state.libraryNameUpdatedAt || "";
+  } else if (opts.setLibraryName) {
+    committedName = opts.nameRecord || newNameRecord(next.libraryName || "");
+    next.libraryName = committedName.name;
+    next.libraryNameUpdatedAt = committedName.updatedAt;
+  }
   next.revision = expected + 1;
   next.updatedAt = new Date().toISOString();
   try {
@@ -341,6 +514,7 @@ async function commit(next, opts = {}) {
       });
     const previous = state;
     state = next;
+    if (committedName) acceptCommittedName(committedName);
     syncLibraryName(previous);
     if (opts.history !== false && previous) rememberHistory(previous, next);
     channel?.postMessage({ revision: state.revision });
@@ -470,6 +644,7 @@ function storageStatus() {
 }
 // A fresh installation starts empty. Loading an existing state never injects example books.
 async function boot() {
+  $("#library-name").disabled = true;
   const seed = C.validate(JSON.parse($("#seed").textContent));
   try {
     db = await openDB();
@@ -514,11 +689,17 @@ async function boot() {
       sidebarCollapsed = (await load("ui"))?.sidebarCollapsed === true;
     } catch {}
   }
-  $("#library-name").value = state.libraryName || "";
-  $("#app-name").textContent = state.libraryName || "";
+  $("#library-name").value = nameSnapshot?.name ?? state.libraryName ?? "";
+  $("#app-name").textContent = $("#library-name").value;
   document.title =
-    (state.libraryName ? state.libraryName + " · " : "") +
+    ($("#library-name").value ? $("#library-name").value + " · " : "") +
     I18n.t("Bibliothèque");
+  nameReady = true;
+  $("#library-name").disabled = false;
+  // Optional browser-managed persistence, as in Boussole. Failure never blocks use.
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+  } catch {}
   syncSidebar();
   storageStatus();
   render();
@@ -797,6 +978,7 @@ function filtered() {
                 b.number,
                 b.author,
                 b.notes,
+                b.summary,
                 b.isbn,
                 b.collection,
                 b.location,
@@ -933,7 +1115,11 @@ function renderList() {
             '<tr><td><div class="title-cell"><span class="book-mark" style="background:' +
             (b.colors.length ? color(b.colors[0]).hex : "#d5cbbb") +
             '">' +
-            (im ? '<img alt="" src="' + im.data + '">' : "") +
+            (im
+              ? '<img loading="lazy" decoding="async" alt="" src="' +
+                im.data +
+                '">'
+              : "") +
             '</span><button class="book-open" data-book="' +
             C.esc(b.id) +
             '">' +
@@ -980,7 +1166,7 @@ function renderList() {
             C.esc(b.title) +
             '">' +
             (im
-              ? '<img src="' +
+              ? '<img loading="lazy" decoding="async" src="' +
                 im.data +
                 I18n.html('" alt="Couverture de ') +
                 C.esc(b.title) +
@@ -988,7 +1174,7 @@ function renderList() {
               : '<div class="faux-cover ' +
                 (C.isQueSaisJe(b.collection)
                   ? "que-sais-je"
-                  : C.isPenguin(b.collection)
+                  : C.isPenguin(b.collection) || C.isPenguin(b.publisher)
                     ? "penguin"
                     : "") +
                 '" style="--cover-color:' +
@@ -1033,11 +1219,15 @@ function renderList() {
     (page <= 1 ? "disabled" : "") +
     ">" +
     icon("left") +
-    "</button><span>" +
+    '</button><div class="page-jump"><button type="button" class="subtle" id="page-jump-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="page-menu" aria-label="' +
+    I18n.t("Aller à la page") +
+    '">' +
     page +
     " / " +
     Math.max(1, Math.ceil(list.length / pageSize)) +
-    I18n.html('</span><button id="next-page" aria-label="Page suivante" ') +
+    I18n.html(
+      '</button><div id="page-menu" role="listbox" aria-label="Choisir une page" hidden></div></div><button id="next-page" aria-label="Page suivante" ',
+    ) +
     (page * pageSize >= list.length ? "disabled" : "") +
     ">" +
     icon("right") +
@@ -1052,6 +1242,13 @@ function renderList() {
     renderList();
     $(".toolbar").scrollIntoView({ block: "start" });
   };
+  bindPageJump(Math.max(1, Math.ceil(list.length / pageSize)));
+  const showNotes = [scope, contentFilter].some(
+    (x) => x === "notes" || x === "images",
+  );
+  $("#view-notes").hidden = !showNotes;
+  $("#view-notes").disabled = !list.some(hasNotes);
+  $("#view-notes").onclick = () => showNotesSlideshow(list.filter(hasNotes));
   renderBulkSelection(list);
   $$("[data-book]").forEach(
     (el) =>
@@ -1693,6 +1890,282 @@ function bindImages(root, b) {
     .querySelectorAll("[data-image]")
     .forEach((btn) => (btn.onclick = () => showImage(b, btn.dataset.image)));
 }
+// The same safe markup renderer is used for notes, summaries and the slideshow.
+function textContent(book, key) {
+  const text = book[key] || "";
+  const images = key === "summary" ? C.summaryImages(book) : C.noteImages(book);
+  const detached = images.filter(
+    (im) => !text.includes("(attachment:" + im.id + ")"),
+  );
+  if (!text.trim() && !images.length)
+    return (
+      '<p class="muted">' +
+      I18n.t(key === "summary" ? "Aucun résumé." : "Aucune note.") +
+      "</p>"
+    );
+  return (
+    C.renderNotes(text, book.images) +
+    detached
+      .map(
+        (im) =>
+          '<figure><button type="button" class="note-image" data-image="' +
+          C.esc(im.id) +
+          '"><img loading="lazy" src="' +
+          im.data +
+          '" alt="' +
+          C.esc(im.caption || im.name) +
+          '"></button><figcaption>' +
+          C.esc(im.caption || im.name) +
+          "</figcaption></figure>",
+      )
+      .join("")
+  );
+}
+function textEditor(key, label, value) {
+  const prefix = key === "notes" ? "note" : "summary";
+  return (
+    '<section class="text-editor" data-text-editor="' +
+    key +
+    '"><h3 class="section-label">' +
+    label +
+    '</h3><div class="format-bar">' +
+    [
+      ["bold", "Gras"],
+      ["italic", "Italique"],
+      ["heading", "Titre"],
+      ["list", "Liste"],
+    ]
+      .map(
+        ([type, title]) =>
+          '<button type="button" data-format="' +
+          type +
+          '">' +
+          I18n.t(title) +
+          "</button>",
+      )
+      .join("") +
+    '<label class="note-color-label">' +
+    I18n.t("Couleur") +
+    '<input type="color" id="' +
+    prefix +
+    '-text-color" value="#004d65" aria-label="' +
+    I18n.t("Couleur des caractères") +
+    '"></label>' +
+    '<button type="button" id="apply-' +
+    prefix +
+    '-color">' +
+    I18n.t("Colorer") +
+    "</button>" +
+    '<label class="note-color-label">' +
+    I18n.t("Surlignage") +
+    '<input type="color" id="' +
+    prefix +
+    '-highlight-color" value="#ffe58a" aria-label="' +
+    I18n.t("Couleur du surlignage") +
+    '"></label>' +
+    '<button type="button" id="apply-' +
+    prefix +
+    '-highlight">' +
+    I18n.t("Surligner") +
+    "</button>" +
+    '<button type="button" id="preview-' +
+    key +
+    '" style="margin-left:auto">' +
+    I18n.t("Aperçu") +
+    "</button></div>" +
+    '<label for="f-' +
+    key +
+    '" hidden>' +
+    label +
+    '</label><textarea class="notes-input" id="f-' +
+    key +
+    '">' +
+    C.esc(value || "") +
+    "</textarea>" +
+    '<div id="' +
+    key +
+    '-preview" class="notes text-preview" hidden></div>' +
+    (key === "summary"
+      ? '<button type="button" class="small" id="add-summary-images">' +
+        I18n.t("Ajouter des images au résumé") +
+        "</button>"
+      : "") +
+    '<p class="hint">' +
+    I18n.t(
+      "La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.",
+    ) +
+    "</p></section>"
+  );
+}
+function bindTextEditor(key) {
+  const prefix = key === "notes" ? "note" : "summary";
+  $("#apply-" + prefix + "-color").onclick = () =>
+    colorNote("color", $("#" + prefix + "-text-color").value, key);
+  $("#apply-" + prefix + "-highlight").onclick = () =>
+    colorNote("highlight", $("#" + prefix + "-highlight-color").value, key);
+  $$('[data-text-editor="' + key + '"] [data-format]').forEach(
+    (el) => (el.onclick = () => formatNote(el.dataset.format, key)),
+  );
+  $("#preview-" + key).onclick = () => {
+    const preview = $("#" + key + "-preview"),
+      show = preview.hidden;
+    preview.hidden = !show;
+    $("#f-" + key).hidden = show;
+    $("#preview-" + key).textContent = I18n.t(show ? "Écrire" : "Aperçu");
+    if (show) {
+      preview.innerHTML = textContent(
+        { ...draft, [key]: $("#f-" + key).value },
+        key,
+      );
+      bindImages(preview, draft);
+    }
+  };
+  if (key === "summary")
+    $("#add-summary-images").onclick = () => $("#summary-files").click();
+}
+function bindPageJump(total) {
+  const toggle = $("#page-jump-toggle"),
+    menu = $("#page-menu");
+  toggle.disabled = total <= 1;
+  menu.innerHTML = Array.from(
+    { length: total },
+    (_, i) =>
+      '<button type="button" role="option" aria-selected="' +
+      (i + 1 === page) +
+      '" data-page="' +
+      (i + 1) +
+      '">' +
+      I18n.t("Page") +
+      " " +
+      (i + 1) +
+      "</button>",
+  ).join("");
+  const close = () => {
+    menu.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  };
+  toggle.onclick = () => {
+    menu.hidden = !menu.hidden;
+    toggle.setAttribute("aria-expanded", String(!menu.hidden));
+    if (!menu.hidden) {
+      const current = menu.querySelector('[aria-selected="true"]');
+      current.focus({ preventScroll: true });
+      current.scrollIntoView({ block: "nearest" });
+    }
+  };
+  menu.onclick = (event) => {
+    const target = event.target.closest("[data-page]");
+    if (!target) return;
+    page = Number(target.dataset.page);
+    renderList();
+    $(".toolbar").scrollIntoView({ block: "start" });
+    $("#page-jump-toggle").focus({ preventScroll: true });
+  };
+  menu.onkeydown = (event) => {
+    const options = [...menu.querySelectorAll("[data-page]")];
+    const index = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      close();
+      toggle.focus();
+    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? total - 1
+            : Math.max(
+                0,
+                Math.min(
+                  total - 1,
+                  index + (event.key === "ArrowDown" ? 1 : -1),
+                ),
+              );
+      options[next].focus();
+    }
+  };
+}
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".page-jump")) {
+    const menu = $("#page-menu");
+    if (menu) {
+      menu.hidden = true;
+      $("#page-jump-toggle").setAttribute("aria-expanded", "false");
+    }
+  }
+});
+// Only the current note is rendered, even when the filtered list is very large.
+function showNotesSlideshow(books) {
+  if (!books.length) return;
+  let index = 0,
+    touch = null;
+  const dialog = modal(
+    I18n.t("Diaporama des notes"),
+    '<div id="note-slide" tabindex="0"></div>',
+    '<button id="slide-prev" aria-label="' +
+      I18n.t("Précédent") +
+      '">' +
+      icon("left") +
+      '</button><span id="slide-position" role="status"></span><button id="slide-next" aria-label="' +
+      I18n.t("Suivant") +
+      '">' +
+      icon("right") +
+      "</button>",
+  );
+  dialog.classList.add("notes-slideshow");
+  const draw = () => {
+    const book = books[index];
+    $("#note-slide").innerHTML =
+      "<h3>" +
+      C.esc(book.title) +
+      '</h3><p class="muted">' +
+      C.esc([book.number, book.author].filter(Boolean).join(" · ")) +
+      '</p><div class="notes">' +
+      textContent(book, "notes") +
+      "</div>";
+    $("#note-slide").scrollTop = 0;
+    $("#slide-position").textContent = index + 1 + " / " + books.length;
+    $("#slide-prev").disabled = index === 0;
+    $("#slide-next").disabled = index === books.length - 1;
+    bindImages($("#note-slide"), book);
+  };
+  const move = (step) => {
+    index = Math.max(0, Math.min(books.length - 1, index + step));
+    draw();
+  };
+  $("#slide-prev").onclick = () => move(-1);
+  $("#slide-next").onclick = () => move(1);
+  const keydown = (event) => {
+    if ($("#lightbox").open) return;
+    if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      move(event.key === "ArrowLeft" ? -1 : 1);
+    }
+  };
+  dialog.addEventListener("keydown", keydown);
+  $("#note-slide").ontouchstart = (event) => {
+    if (event.touches.length === 1)
+      touch = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  };
+  $("#note-slide").ontouchend = (event) => {
+    if (!touch || !event.changedTouches.length) return;
+    const dx = event.changedTouches[0].clientX - touch.x,
+      dy = event.changedTouches[0].clientY - touch.y;
+    touch = null;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2)
+      move(dx < 0 ? 1 : -1);
+  };
+  dialog.addEventListener(
+    "close",
+    () => {
+      dialog.classList.remove("notes-slideshow");
+      dialog.removeEventListener("keydown", keydown);
+      $("#view-notes").focus({ preventScroll: true });
+    },
+    { once: true },
+  );
+  draw();
+}
 function renderDetail() {
   $("#drawer-label").textContent = draft.collection || I18n.t("Fiche du livre");
   renderFavorite();
@@ -1720,11 +2193,6 @@ function renderDetail() {
       ),
     ],
   ];
-  const detached = draft.images.filter(
-    (im) =>
-      im.role !== "cover" &&
-      !draft.notes.includes("(attachment:" + im.id + ")"),
-  );
   $("#drawer-body").innerHTML =
     (draft.deletedAt
       ? I18n.html(
@@ -1747,45 +2215,32 @@ function renderDetail() {
       .filter(([n, v]) => v && v !== '<span class="swatches"></span>')
       .map(([n, v]) => "<dt>" + n + "</dt><dd>" + v + "</dd>")
       .join("") +
-    I18n.html(
-      '</dl><h3 class="section-label">Mes notes</h3><div class="notes">',
-    ) +
-    (draft.notes.trim()
-      ? C.renderNotes(draft.notes, draft.images)
-      : I18n.html(
-          '<p class="muted">Aucune note pour le moment. « Modifier » permet d’ajouter des idées, citations et repères de lecture.</p>',
-        )) +
-    "</div>" +
-    (detached.length
-      ? I18n.html(
-          '<h3 class="section-label">Images jointes</h3><div class="notes">',
-        ) +
-        detached
-          .map(
-            (im) =>
-              '<figure><button class="note-image" data-image="' +
-              C.esc(im.id) +
-              '"><img loading="lazy" src="' +
-              im.data +
-              '" alt="' +
-              C.esc(im.caption || im.name) +
-              '"></button><figcaption>' +
-              C.esc(im.caption || im.name) +
-              "</figcaption></figure>",
-          )
-          .join("") +
+    "</dl>" +
+    ((draft.summary || "").trim() || C.summaryImages(draft).length
+      ? '<h3 class="section-label">' +
+        I18n.t("Résumé") +
+        '</h3><div class="notes">' +
+        textContent(draft, "summary") +
         "</div>"
-      : "");
+      : "") +
+    '<h3 class="section-label">' +
+    I18n.t("Mes notes") +
+    '</h3><div class="notes">' +
+    textContent(draft, "notes") +
+    "</div>";
   $("#drawer-body").insertAdjacentHTML(
     "beforeend",
     '<div class="pdf-actions"><button id="pdf-full">' +
       icon("download") +
-      I18n.html('PDF de la fiche complète</button><button id="pdf-notes">') +
+      I18n.html('PDF de la fiche complète</button><button id="pdf-no-notes">') +
+      icon("download") +
+      I18n.html('Fiche complète sans note</button><button id="pdf-notes">') +
       icon("download") +
       I18n.html("PDF des notes</button></div>"),
   );
   $("#pdf-full").onclick = () => exportBookPDF(false);
   $("#pdf-notes").onclick = () => exportBookPDF(true);
+  $("#pdf-no-notes").onclick = () => exportBookPDF(false, false);
   $("#drawer-footer").innerHTML =
     '<div><button class="subtle danger small" id="delete-book">' +
     icon(draft.deletedAt ? "restore" : "trash") +
@@ -1828,7 +2283,7 @@ function renderDetail() {
   $("#delete-book").onclick = () => removeBook();
   bindImages($("#drawer-body"), draft);
 }
-function pdfFilename(book, notesOnly, libraryName) {
+function pdfFilename(book, notesOnly, libraryName, includeNotes = true) {
   const stem =
     C.norm([book.title, book.number].filter(Boolean).join(" "))
       .replace(/[^a-z0-9]+/g, "-")
@@ -1836,7 +2291,10 @@ function pdfFilename(book, notesOnly, libraryName) {
       .slice(0, 100) || I18n.t("livre");
   const slug = librarySlug(libraryName);
   return (
-    stem + (slug ? "_" + slug : "") + (notesOnly ? "_notes" : "_fiche") + ".pdf"
+    stem +
+    (slug ? "_" + slug : "") +
+    (notesOnly ? "_notes" : includeNotes ? "_fiche" : "_fiche_sans_notes") +
+    ".pdf"
   );
 }
 // iPad browsers do not reliably allow many automatic downloads. Generate the
@@ -1853,7 +2311,7 @@ function exportSelectedPDF() {
       I18n.t(" fiche(s) sélectionnée(s).") +
       "</p>" +
       I18n.html(
-        '<form id="selection-pdf-form"><fieldset><legend>Contenu</legend><label class="pdf-choice"><input type="radio" name="pdf-content" value="full" checked> Fiches complètes</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="notes"> Notes uniquement</label></fieldset><fieldset><legend>Organisation</legend><label class="pdf-choice"><input type="radio" name="pdf-group" value="combined" checked> Un PDF pour toute la sélection</label><label class="pdf-choice"><input type="radio" name="pdf-group" value="separate"> Un PDF par livre</label></fieldset></form><p id="selection-pdf-progress" role="status"></p><div id="selection-pdf-downloads"></div>',
+        '<form id="selection-pdf-form"><fieldset><legend>Contenu</legend><label class="pdf-choice"><input type="radio" name="pdf-content" value="full" checked> Fiches complètes</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="no-notes"> Fiche complète sans note</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="notes"> Notes uniquement</label></fieldset><fieldset><legend>Organisation</legend><label class="pdf-choice"><input type="radio" name="pdf-group" value="combined" checked> Un PDF pour toute la sélection</label><label class="pdf-choice"><input type="radio" name="pdf-group" value="separate"> Un PDF par livre</label></fieldset></form><p id="selection-pdf-progress" role="status"></p><div id="selection-pdf-downloads"></div>',
       ),
     I18n.html(
       '<button id="selection-pdf-cancel">Fermer</button><button class="primary" id="selection-pdf-generate" form="selection-pdf-form" type="submit">Générer les PDF</button>',
@@ -1861,6 +2319,27 @@ function exportSelectedPDF() {
   );
   let cancelled = false,
     generating = false;
+  const notesBooks = books.filter(hasNotes);
+  const scopeHint = document.createElement("p");
+  scopeHint.id = "selection-pdf-scope";
+  scopeHint.className = "hint";
+  scopeHint.setAttribute("role", "status");
+  $("#selection-pdf-form").after(scopeHint);
+  const updateScope = () => {
+    const notesOnly = $("input[name=pdf-content]:checked").value === "notes";
+    scopeHint.textContent = notesOnly
+      ? notesBooks.length
+        ? notesBooks.length +
+          I18n.t(" fiche(s) avec des notes sur ") +
+          books.length +
+          I18n.t(" sélectionnée(s). Les fiches sans note sont exclues.")
+        : I18n.t("Aucune note à exporter dans cette sélection.")
+      : "";
+    $("#selection-pdf-generate").disabled =
+      generating || (notesOnly && !notesBooks.length);
+  };
+  $("#selection-pdf-form").onchange = updateScope;
+  updateScope();
   const urls = [];
   const release = () => {
     urls.splice(0).forEach((url) => URL.revokeObjectURL(url));
@@ -1877,12 +2356,18 @@ function exportSelectedPDF() {
   $("#selection-pdf-form").onsubmit = async (event) => {
     event.preventDefault();
     if (generating) return;
-    generating = true;
     const generate = $("#selection-pdf-generate"),
       progress = $("#selection-pdf-progress"),
       links = $("#selection-pdf-downloads");
     const notesOnly = $("input[name=pdf-content]:checked").value === "notes",
-      separate = $("input[name=pdf-group]:checked").value === "separate";
+      separate = $("input[name=pdf-group]:checked").value === "separate",
+      exportBooks = notesOnly ? notesBooks : books,
+      includeNotes = $("input[name=pdf-content]:checked").value !== "no-notes";
+    if (!exportBooks.length) {
+      updateScope();
+      return;
+    }
+    generating = true;
     generate.disabled = true;
     $$("#selection-pdf-form fieldset").forEach((el) => (el.disabled = true));
     links.replaceChildren();
@@ -1895,11 +2380,15 @@ function exportSelectedPDF() {
       const update = (done) => {
         if (cancelled) throw Error("cancelled");
         progress.textContent =
-          I18n.t("Préparation du PDF…") + " " + done + " / " + books.length;
+          I18n.t("Préparation du PDF…") +
+          " " +
+          done +
+          " / " +
+          exportBooks.length;
       };
       update(0);
       if (separate) {
-        for (const [index, book] of books.entries()) {
+        for (const [index, book] of exportBooks.entries()) {
           update(index);
           const bytes = await LibraryPDF.create(
             book,
@@ -1907,6 +2396,8 @@ function exportSelectedPDF() {
             notesOnly,
             name,
             enumLabel,
+            undefined,
+            { includeNotes },
           );
           if (cancelled) throw Error("cancelled");
           const url = URL.createObjectURL(
@@ -1918,19 +2409,20 @@ function exportSelectedPDF() {
             filename:
               String(index + 1).padStart(3, "0") +
               "_" +
-              pdfFilename(book, notesOnly, name),
+              pdfFilename(book, notesOnly, name, includeNotes),
             title: [book.title, book.number].filter(Boolean).join(" · "),
           });
           update(index + 1);
         }
       } else {
         const bytes = await LibraryPDF.create(
-          books,
+          exportBooks,
           palette,
           notesOnly,
           name,
           enumLabel,
           update,
+          { includeNotes },
         );
         if (cancelled) throw Error("cancelled");
         const url = URL.createObjectURL(
@@ -1943,7 +2435,11 @@ function exportSelectedPDF() {
             "bibliotheque" +
             (librarySlug(name) ? "_" + librarySlug(name) : "") +
             "_selection_" +
-            (notesOnly ? "notes" : "fiches") +
+            (notesOnly
+              ? "notes"
+              : includeNotes
+                ? "fiches"
+                : "fiches_sans_notes") +
             ".pdf",
           title: I18n.t("Toute la sélection"),
         });
@@ -1979,7 +2475,7 @@ function exportSelectedPDF() {
     } finally {
       generating = false;
       if (!cancelled) {
-        generate.disabled = false;
+        updateScope();
         $$("#selection-pdf-form fieldset").forEach(
           (el) => (el.disabled = false),
         );
@@ -1988,7 +2484,7 @@ function exportSelectedPDF() {
   };
 }
 // PDF files are generated locally from saved records; explicit links also suit iPad Safari.
-async function exportBookPDF(notesOnly) {
+async function exportBookPDF(notesOnly, includeNotes = true) {
   const book = C.clone(draft),
     palette = C.clone(state.palette),
     buttons = $$(".pdf-actions button");
@@ -2003,8 +2499,10 @@ async function exportBookPDF(notesOnly) {
       notesOnly,
       exportLibraryName,
       enumLabel,
+      undefined,
+      { includeNotes },
     );
-    const name = pdfFilename(book, notesOnly, exportLibraryName);
+    const name = pdfFilename(book, notesOnly, exportLibraryName, includeNotes);
     const url = URL.createObjectURL(
       new Blob([bytes], { type: "application/pdf" }),
     );
@@ -2014,7 +2512,11 @@ async function exportBookPDF(notesOnly) {
         C.esc(book.title) +
         (notesOnly
           ? I18n.t(" : notes et images jointes.")
-          : I18n.t(" : fiche complète, notes et images.")) +
+          : I18n.t(
+              includeNotes
+                ? " : fiche complète, notes et images."
+                : " : fiche complète sans les notes.",
+            )) +
         '</p><a class="pdf-download" href="' +
         url +
         '" download="' +
@@ -2161,15 +2663,16 @@ function renderEditor() {
     '<datalist id="theme-list">' +
     themes.map((t) => '<option value="' + C.esc(t) + '">').join("") +
     I18n.html(
-      '</datalist></div><p class="hint">Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.</p><h3 class="section-label">Image de couverture</h3><div id="cover-editor"></div><h3 class="section-label">Mes notes</h3><div class="format-bar"><button type="button" data-format="bold"><strong>Gras</strong></button><button type="button" data-format="italic"><em>Italique</em></button><button type="button" data-format="heading">Titre</button><button type="button" data-format="list">Liste</button><label class="note-color-label">Couleur<input type="color" id="note-text-color" value="#004d65" aria-label="Couleur des caractères"></label><button type="button" id="apply-note-color">Colorer</button><label class="note-color-label">Surlignage<input type="color" id="note-highlight-color" value="#ffe58a" aria-label="Couleur du surlignage"></label><button type="button" id="apply-note-highlight">Surligner</button><button type="button" id="preview-notes" style="margin-left:auto">Aperçu</button></div><label for="f-notes" hidden>Mes notes</label><textarea class="notes-input" id="f-notes" placeholder="Une idée, une citation, un passage à retrouver…">',
+      '</datalist></div><p class="hint">Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.</p><h3 class="section-label">Image de couverture</h3><div id="cover-editor"></div>',
     ) +
-    C.esc(draft.notes) +
+    textEditor("summary", I18n.t("Résumé"), draft.summary) +
+    textEditor("notes", I18n.t("Mes notes"), draft.notes) +
     I18n.html(
-      '</textarea><div id="notes-preview" class="notes" style="padding:18px;border:1px solid var(--line)" hidden></div><p class="hint">La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.</p><h3 class="section-label">Images jointes</h3><button type="button" class="upload-area" style="width:100%" id="add-images">',
+      '<h3 class="section-label">Images jointes</h3><button type="button" class="upload-area" style="width:100%" id="add-images">',
     ) +
     icon("image") +
     I18n.html(
-      'Ajouter des images</button><p class="hint">JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Optimisation automatique : couvertures jusqu’à 600 px de haut, notes jusqu’à 1 600 px sur le grand côté, sans agrandissement. Les copies optimisées remplacent les originaux dans la sauvegarde. Les animations sont conservées.</p><div class="attachment-list" id="attachments"></div></form>',
+      'Ajouter des images</button><p class="hint">JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Optimisation automatique : couvertures jusqu’à 400 px de haut, notes jusqu’à 800 px de large, sans agrandissement. Les copies optimisées remplacent les originaux dans la sauvegarde. Les animations sont conservées.</p><div class="attachment-list" id="attachments"></div></form>',
     );
   $("#drawer-footer").innerHTML =
     I18n.html(
@@ -2181,10 +2684,8 @@ function renderEditor() {
     I18n.html("Enregistrer la fiche</button></div>");
   $("#clear-loan-date").onclick = () => clearLoanFields(false);
   $("#return-loan").onclick = () => clearLoanFields(true);
-  $("#apply-note-color").onclick = () =>
-    colorNote("color", $("#note-text-color").value);
-  $("#apply-note-highlight").onclick = () =>
-    colorNote("highlight", $("#note-highlight-color").value);
+  bindTextEditor("notes");
+  bindTextEditor("summary");
   renderPalettePicker();
   renderAttachments();
   $("#book-form").oninput = () => markDirty();
@@ -2205,23 +2706,6 @@ function renderEditor() {
     renderDetail();
   };
   $("#add-images").onclick = () => $("#image-files").click();
-  $$("[data-format]").forEach(
-    (el) => (el.onclick = () => formatNote(el.dataset.format)),
-  );
-  $("#preview-notes").onclick = () => {
-    const preview = $("#notes-preview"),
-      show = preview.hidden;
-    preview.hidden = !show;
-    $("#f-notes").hidden = show;
-    $("#preview-notes").textContent = show
-      ? I18n.t("Écrire")
-      : I18n.t("Aperçu");
-    if (show) {
-      draft.notes = $("#f-notes").value;
-      preview.innerHTML = C.renderNotes(draft.notes, draft.images);
-      bindImages(preview, draft);
-    }
-  };
 }
 function clearLoanFields(returned) {
   const oldDate = $("#f-loanDate");
@@ -2287,6 +2771,7 @@ function readForm() {
     "language",
     "status",
     "notes",
+    "summary",
   ])
     draft[k] = $("#f-" + k).value;
   if (!draft.title.trim()) throw Error(I18n.t("Indiquez le titre du livre."));
@@ -2368,9 +2853,10 @@ function renderCoverEditor() {
   $("#choose-cover").onclick = () => $("#cover-file").click();
   if ($("#existing-cover"))
     $("#existing-cover").onchange = (e) => {
-      draft.images.forEach(
-        (im) => (im.role = im.id === e.target.value ? "cover" : "note"),
-      );
+      draft.images.forEach((im) => {
+        if (im.id === e.target.value) im.role = "cover";
+        else if (im.role === "cover") im.role = "note";
+      });
       markDirty();
       renderAttachments();
     };
@@ -2403,7 +2889,11 @@ function renderAttachments() {
         '"><div class="actions"><button class="small" type="button" data-insert-image="' +
         i +
         I18n.html(
-          '">Dans les notes</button><button class="small" type="button" data-cover="',
+          '">Dans les notes</button><button class="small" type="button" data-target="summary" data-insert-image="',
+        ) +
+        i +
+        I18n.html(
+          '">Dans le résumé</button><button class="small" type="button" data-cover="',
         ) +
         i +
         '">' +
@@ -2435,6 +2925,7 @@ function renderAttachments() {
             "](attachment:" +
             im.id +
             ")\n\n",
+          el.dataset.target || "notes",
         );
       }),
   );
@@ -2443,7 +2934,9 @@ function renderAttachments() {
       (el.onclick = () => {
         const im = draft.images[Number(el.dataset.cover)],
           was = im.role === "cover";
-        draft.images.forEach((x) => (x.role = "note"));
+        draft.images.forEach((x) => {
+          if (x.role === "cover") x.role = "note";
+        });
         if (!was) im.role = "cover";
         markDirty();
         renderAttachments();
@@ -2460,34 +2953,36 @@ function renderAttachments() {
           )
         )
           return;
-        const input = $("#f-notes");
-        input.value = input.value.replace(
-          new RegExp(
-            "!\\[[^\\]]*\\]\\(attachment:" +
-              im.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-              "\\)",
-            "g",
-          ),
-          "",
-        );
+        for (const key of ["notes", "summary"]) {
+          const input = $("#f-" + key);
+          input.value = input.value.replace(
+            new RegExp(
+              "!\\[[^\\]]*\\]\\(attachment:" +
+                im.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+                "\\)",
+              "g",
+            ),
+            "",
+          );
+        }
         draft.images.splice(i, 1);
         markDirty();
         renderAttachments();
       }),
   );
 }
-function insertNote(text) {
-  const el = $("#f-notes");
+function insertNote(text, key = "notes") {
+  const el = $("#f-" + key);
   el.hidden = false;
-  $("#notes-preview").hidden = true;
-  $("#preview-notes").textContent = I18n.t("Aperçu");
+  $("#" + key + "-preview").hidden = true;
+  $("#preview-" + key).textContent = I18n.t("Aperçu");
   const p = el.selectionStart;
   el.setRangeText(text, p, el.selectionEnd, "end");
   el.focus();
   markDirty();
 }
-function colorNote(kind, hex) {
-  const el = $("#f-notes"),
+function colorNote(kind, hex, key = "notes") {
+  const el = $("#f-" + key),
     text = el.value.slice(el.selectionStart, el.selectionEnd);
   if (!text) {
     toast(
@@ -2503,10 +2998,11 @@ function colorNote(kind, hex) {
         line ? "[" + kind + "=" + hex + "]" + line + "[/" + kind + "]" : line,
       )
       .join("\n"),
+    key,
   );
 }
-function formatNote(type) {
-  const el = $("#f-notes"),
+function formatNote(type, key = "notes") {
+  const el = $("#f-" + key),
     t =
       el.value.slice(el.selectionStart, el.selectionEnd) ||
       I18n.t("votre texte");
@@ -2522,7 +3018,7 @@ function formatNote(type) {
         .join("\n") +
       "\n",
   }[type];
-  insertNote(v);
+  insertNote(v, key);
 }
 function imageWeight(bytes) {
   return (
@@ -2558,12 +3054,78 @@ async function optimizeLibraryImages() {
   const dialog = modal(
     I18n.t("Alléger les images"),
     I18n.html(
-      '<p>Les couvertures sont réduites à 600 px de haut, les images de notes à 1 600 px sur le grand côté. Les petites images ne sont jamais agrandies. Les animations sont conservées.</p><p class="notice">Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.</p><p id="optimization-progress" role="status"></p><div id="optimization-report"></div>',
+      '<p>Les petites images ne sont jamais agrandies. Les animations sont conservées. Les réglages restent provisoires jusqu’au remplacement des images.</p><div class="optimization-controls"><label for="opt-cover-height">Hauteur des couvertures <output id="opt-cover-value">400 px</output></label><input type="range" id="opt-cover-height" min="200" max="400" step="10" value="400"><label for="opt-note-width">Largeur des images de notes <output id="opt-note-value">800 px</output></label><input type="range" id="opt-note-width" min="600" max="800" step="10" value="800"></div><div class="optimization-examples" id="optimization-examples"></div><p class="hint">Aperçu réduit à l’écran. Les dimensions indiquées sont celles du fichier. « Annuler » conserve les images actuelles.</p><p class="notice">Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.</p><p id="optimization-progress" role="status"></p><div id="optimization-report"></div>',
     ),
     I18n.html(
       '<button id="optimization-cancel">Annuler</button><button class="primary" id="optimization-start">Calculer le gain</button><button class="primary" id="optimization-apply" hidden>Remplacer les images</button>',
     ),
   );
+  const sizeOptions = () => ({
+    coverHeight: Number($("#opt-cover-height").value),
+    noteWidth: Number($("#opt-note-width").value),
+  });
+  const samples = [
+    snapshot.books.flatMap((b) => b.images).find((im) => im.role === "cover"),
+    snapshot.books.flatMap((b) => b.images).find((im) => im.role !== "cover"),
+  ];
+  let previewRevision = 0,
+    previewTimer;
+  const drawExamples = async () => {
+    const request = ++previewRevision,
+      sizes = sizeOptions(),
+      panels = [];
+    for (let i = 0; i < samples.length; i++) {
+      const sample = samples[i];
+      let result;
+      if (sample) {
+        try {
+          result = await ImageOptimizer.optimize(sample, sizes);
+        } catch {}
+      }
+      if (cancelled || request !== previewRevision) return;
+      const size = i === 0 ? sizes.coverHeight : sizes.noteWidth;
+      panels.push(
+        "<figure><figcaption>" +
+          I18n.t(i === 0 ? "Couverture" : "Images des notes") +
+          " · " +
+          size +
+          ' px</figcaption><div class="optimization-sample" style="' +
+          (i === 0
+            ? "height:" + size / 2 + "px"
+            : "width:" + size * 0.35 + "px") +
+          '">' +
+          (result
+            ? '<img src="' +
+              result.image.data +
+              '" alt="' +
+              I18n.t("Aperçu") +
+              '">'
+            : '<div class="size-placeholder"></div>') +
+          "</div><small>" +
+          (result
+            ? imageWeight(result.before) + " → " + imageWeight(result.after)
+            : I18n.t("Exemple de dimensions")) +
+          "</small></figure>",
+      );
+    }
+    $("#optimization-examples").innerHTML = panels.join("");
+  };
+  const changeSizes = () => {
+    if (imagesProcessing) return;
+    proposed = null;
+    $("#opt-cover-value").textContent = $("#opt-cover-height").value + " px";
+    $("#opt-note-value").textContent = $("#opt-note-width").value + " px";
+    $("#optimization-report").replaceChildren();
+    $("#optimization-apply").hidden = true;
+    $("#optimization-start").hidden = false;
+    $("#optimization-start").disabled = !total;
+    ++previewRevision;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(drawExamples, 180);
+  };
+  $("#opt-cover-height").oninput = changeSizes;
+  $("#opt-note-width").oninput = changeSizes;
+  drawExamples();
   $("#optimization-progress").textContent =
     total + I18n.t(" image(s) dans la bibliothèque, corbeille comprise.");
   $("#optimization-start").disabled = !total;
@@ -2577,6 +3139,8 @@ async function optimizeLibraryImages() {
     "close",
     () => {
       cancelled = true;
+      clearTimeout(previewTimer);
+      ++previewRevision;
       proposed = null;
     },
     { once: true },
@@ -2586,6 +3150,8 @@ async function optimizeLibraryImages() {
       apply = $("#optimization-apply");
     start.disabled = true;
     imagesProcessing = true;
+    const chosenSizes = sizeOptions();
+    $("#opt-cover-height").disabled = $("#opt-note-width").disabled = true;
     let before = 0,
       after = 0,
       count = 0,
@@ -2601,7 +3167,7 @@ async function optimizeLibraryImages() {
           if (cancelled) return;
           let result;
           try {
-            result = await ImageOptimizer.optimize(original);
+            result = await ImageOptimizer.optimize(original, chosenSizes);
           } catch (error) {
             result = {
               image: original,
@@ -2659,6 +3225,8 @@ async function optimizeLibraryImages() {
       }
     } finally {
       imagesProcessing = false;
+      if (!cancelled)
+        $("#opt-cover-height").disabled = $("#opt-note-width").disabled = false;
     }
   };
   $("#optimization-apply").onclick = async () => {
@@ -2758,6 +3326,7 @@ async function addImages(files, role = "note") {
     if ($("#save-book")) $("#save-book").disabled = false;
     $("#image-files").value = "";
     $("#cover-file").value = "";
+    $("#summary-files").value = "";
   }
 }
 async function saveBook() {
@@ -3278,7 +3847,7 @@ function help() {
   modal(
     I18n.t("Votre bibliothèque, simplement"),
     I18n.html(
-      '<p>Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.</p><p>Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. Chaque livre commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.</p><p>Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.</p><div class="help-step"><span>1</span><div><h3>La recherche retrouve les livres</h3><p>La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.</p></div></div><div class="help-step"><span>2</span><div><h3>Les fiches accueillent notes et images</h3><p>« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.</p></div></div><div class="help-step"><span>3</span><div><h3>La sauvegarde emporte les données</h3><p>Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.</p></div></div><div class="help-step"><span>4</span><div><h3>L’import restaure les données</h3><p>Sur un autre appareil, « Importer » ouvre une sauvegarde .bibliotheque.json. La restauration proposée rétablit la bibliothèque ou la collection contenue dans ce fichier. Seules les sauvegardes JSON Bibliothèque sont importées.</p></div></div><div class="help-step"><span>5</span><div><h3>La sélection permet les modifications groupées</h3><p>« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.</p></div></div><div class="notice"><strong>À retenir :</strong> les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.</div><p class="hint">L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.</p><p class="hint">Bibliothèque 1.3.2 · 29-10-2026 · Eigrutel Lab<br>Programme conçu et développé par Simon Léturgie dans le cadre d’Eigrutel BD Academy.<br>Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0. Marques Eigrutel réservées.</p>',
+      '<p>La liste affiche jusqu’à 100 livres par page. Le numéro de page ouvre un menu vers le haut. Le résumé possède son propre éditeur et ses images ; il reste distinct des notes. « Fiche complète sans note » conserve le résumé et exclut les notes. La loupe ouvre le diaporama des notes de la vue filtrée. Le style Penguin reconnaît Penguin et Penguin Classics dans la collection ou l’éditeur. Dans « Alléger les images », les curseurs règlent la hauteur des couvertures de 200 à 400 px et la largeur des images de notes de 600 à 800 px. Le calcul présente le gain avant remplacement ; Annuler conserve les images enregistrées.</p><p>Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.</p><p>Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. En mode notes uniquement, seules les fiches avec du texte ou des images dans les notes sont exportées. Chaque livre exporté commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.</p><p>Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.</p><div class="help-step"><span>1</span><div><h3>La recherche retrouve les livres</h3><p>La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « annotés » inclut les notes contenant seulement une image, même sans texte. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.</p></div></div><div class="help-step"><span>2</span><div><h3>Les fiches accueillent notes et images</h3><p>« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.</p></div></div><div class="help-step"><span>3</span><div><h3>La sauvegarde emporte les données</h3><p>Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.</p></div></div><div class="help-step"><span>4</span><div><h3>L’import restaure les données</h3><p>Sur un autre appareil, « Importer » ouvre une sauvegarde .bibliotheque.json. La restauration proposée rétablit la bibliothèque ou la collection contenue dans ce fichier. Seules les sauvegardes JSON Bibliothèque sont importées.</p></div></div><div class="help-step"><span>5</span><div><h3>La sélection permet les modifications groupées</h3><p>« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.</p></div></div><div class="notice"><strong>À retenir :</strong> les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.</div><p class="hint">L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.</p><p class="hint">Bibliothèque 1.4.1 · 02-11-2026 · Eigrutel Lab<br>Programme conçu et développé par Simon Léturgie dans le cadre d’Eigrutel BD Academy.<br>Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0. Marques Eigrutel réservées.</p>',
     ),
   );
 }
@@ -3288,6 +3857,7 @@ function switchLanguage() {
   const focusedId = document.activeElement?.id;
   const scrollTop = $("#drawer-body").scrollTop;
   const notePreview = $("#notes-preview") && !$("#notes-preview").hidden;
+  const summaryPreview = $("#summary-preview") && !$("#summary-preview").hidden;
   // Preserve unsaved input values; translation never validates or saves a draft.
   const fields = $$(
     "#drawer input,#drawer textarea,#drawer select,.appearance-settings input",
@@ -3326,12 +3896,22 @@ function switchLanguage() {
   if (editing && notePreview) {
     $("#notes-preview").hidden = false;
     $("#f-notes").hidden = true;
-    $("#notes-preview").innerHTML = C.renderNotes(
-      $("#f-notes").value,
-      draft.images,
+    $("#notes-preview").innerHTML = textContent(
+      { ...draft, notes: $("#f-notes").value },
+      "notes",
     );
     bindImages($("#notes-preview"), draft);
     $("#preview-notes").textContent = I18n.t("Écrire");
+  }
+  if (editing && summaryPreview) {
+    $("#summary-preview").hidden = false;
+    $("#f-summary").hidden = true;
+    $("#summary-preview").innerHTML = textContent(
+      { ...draft, summary: $("#f-summary").value },
+      "summary",
+    );
+    bindImages($("#summary-preview"), draft);
+    $("#preview-summary").textContent = I18n.t("Écrire");
   }
   document.getElementById(focusedId)?.focus({ preventScroll: true });
   $("#drawer-body").scrollTop = scrollTop;
@@ -3399,19 +3979,24 @@ $("#reset-appearance").onclick = async () => {
     fail(e);
   }
 };
+function canEditLibraryName() {
+  return nameReady && namePageActive && document.visibilityState !== "hidden";
+}
 $("#library-name").oninput = (e) => {
+  if (!canEditLibraryName()) return;
   rememberNameDraft(e.target.value);
   clearTimeout(nameSaveTimer);
-  nameSaveTimer = setTimeout(
-    () => saveLibraryName($("#library-name").value).catch(fail),
-    250,
-  );
+  // The small name replicas are already durable; debounce only the large library.
+  nameSaveTimer = setTimeout(() => flushLibraryName().catch(fail), 250);
 };
-window.addEventListener("pagehide", () => {
-  if (pendingLibraryName !== null)
-    saveLibraryName(pendingLibraryName).catch(() => {});
-});
 $("#library-name").onchange = async (e) => {
+  if (!canEditLibraryName()) return;
+  // Native teardown can clear a field without an input edit. A deliberate clear
+  // was already recorded by oninput; an untracked empty change is ignored.
+  if (!e.target.value.trim() && nameSnapshot?.name) {
+    e.target.value = nameSnapshot.name;
+    return;
+  }
   try {
     await saveLibraryName(e.target.value);
     toast(I18n.t("Nom de la bibliothèque enregistré."));
@@ -3419,6 +4004,19 @@ $("#library-name").onchange = async (e) => {
     fail(error);
   }
 };
+// Never save the page's visual state while iPadOS tears down or suspends it.
+window.addEventListener("pagehide", () => {
+  namePageActive = false;
+});
+function resumeLibraryName() {
+  namePageActive = true;
+  if (nameReady) recoverLibraryName().catch(fail);
+}
+window.addEventListener("pageshow", resumeLibraryName);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") namePageActive = false;
+  else if (document.visibilityState === "visible") resumeLibraryName();
+});
 $("#library-name").onkeydown = (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -3488,6 +4086,7 @@ $("#collection-backup-btn").onclick = backupCollection;
 $("#import-btn").onclick = importDialog;
 $("#import-file").onchange = (e) => readImport(e.target.files[0]);
 $("#image-files").onchange = (e) => addImages([...e.target.files]);
+$("#summary-files").onchange = (e) => addImages([...e.target.files], "summary");
 $("#cover-file").onchange = (e) => addImages([...e.target.files], "cover");
 window.addEventListener("beforeunload", (e) => {
   if (dirty || busy || imagesProcessing) {

@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.4.1 - 2026-11-02
+
+- Replace the notes slideshow text button with the same magnifier glyph as Farde, with bilingual accessible labels.
+- Centre the upward page menu over its counter and replace individual button outlines with horizontal separators.
+
+## 1.4.0 - 2026-11-02
+
+- Display 100 books per page, lazy-load covers and add an upward direct-page menu.
+- Add a separate rich-text summary with images, JSON persistence and PDF support.
+- Add full-record PDF exports without notes, individually and in selections.
+- Harmonise title hyphenation across languages and improve mobile add-book spacing.
+- Recognise Penguin and Penguin Classics in either collection or publisher.
+- Add a filtered notes slideshow with keyboard and touch navigation.
+- Add provisional image-size sliders, previews, recalculation and cancellation before replacement.
+- Add regression tests for all these workflows. Browser checks used a mobile-width viewport; no physical iPad test was available.
+
+## 1.3.4 - 2026-10-30
+
+- Cover optimisation now targets at most 400 px high; note images at most 800 px wide, preserving proportions and never upscaling. Existing images can use the same limits via Optimise images.
+- Annotated counts and filters include image-only notes and attached note images; covers alone remain excluded.
+- Selected notes-only PDF exports skip empty notes in both combined and separate modes, display the eligible count and block empty exports. Full-record exports keep all selected records.
+- Added regression coverage for image dimensions, annotated counts and a 400-book selection with only three annotated records.
+
+## 1.3.3 - 2026-10-29
+
+- Library-name persistence follows the supplied Boussole strategy: durable timestamped localStorage and independent IndexedDB snapshots, retained after successful saves.
+- Name recovery runs at startup, pageshow and visibility resume. Teardown events never save the visible form state.
+- JSON/PDF exports read the name model, preventing a transient blank field from erasing the saved name or export suffix.
+- Intentional input clears and explicit imports remain supported. Name timestamps are protected from unrelated saves and Undo/Redo.
+- Only the small name metadata is replicated; books and images are not copied into localStorage.
+- Added suspension/resume and partial-storage-loss regression tests. No physical iPad hardware test was available.
+
+
 ## 1.3.2 - 2026-10-29
 
 - Remove colour labels with a cross in the palette editor; used labels show the affected-book count before removal.

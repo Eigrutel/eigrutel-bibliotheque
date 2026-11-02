@@ -11,16 +11,19 @@ function picture(w,h,alpha=false){
 }
 (async()=>{
  const data=picture(1800,2700);const source={id:'cover',name:'cover.jpg',role:'cover',caption:'Test',data};
- const cover=await O.optimize(source);assert(cover.changed);assert(cover.after<cover.before);const ci=await loadImage(cover.image.data);assert.equal(ci.height,600);assert.equal(ci.width,400);
+ const cover=await O.optimize(source);assert(cover.changed);assert(cover.after<cover.before);const ci=await loadImage(cover.image.data);assert.equal(ci.height,400);assert.equal(ci.width,267);
  assert(JSON.stringify(cover.image).length<JSON.stringify(source).length);assert.equal(source.data,data);assert.equal(cover.image.id,'cover');assert.equal(cover.image.caption,'Test');
  assert.equal((await O.optimize(cover.image)).image.data,cover.image.data);
- // A cover already optimised by 1.1.0 must reach the new size once, then stay unchanged.
- const oldData=picture(667,1000),oldBytes=O.bytes(oldData);
- const older={...source,data:oldData,optimization:{version:1,sourceBytes:source.data.length,bytes:oldBytes,width:667,height:1000}};
- const reduced=await O.optimize(older);assert(reduced.changed);assert.equal(reduced.image.optimization.height,600);assert.equal(reduced.image.optimization.width,400);assert.equal(reduced.image.optimization.sourceBytes,older.optimization.sourceBytes);
+ // A cover already optimised by 1.3.3 must reach the new size once, then stay unchanged.
+ const oldData=picture(400,600),oldBytes=O.bytes(oldData);
+ const older={...source,data:oldData,optimization:{version:1,sourceBytes:source.data.length,bytes:oldBytes,width:400,height:600}};
+ const reduced=await O.optimize(older);assert(reduced.changed);assert.equal(reduced.image.optimization.height,400);assert.equal(reduced.image.optimization.width,267);assert.equal(reduced.image.optimization.sourceBytes,older.optimization.sourceBytes);
  assert.equal((await O.optimize(reduced.image)).image.data,reduced.image.data);
  assert.deepEqual({...O.dimensions(3000,500,'cover')},{width:960,height:160});
- const note=await O.optimize({id:'note',name:'note.png',role:'note',data:picture(2400,1800,true)});const ni=await loadImage(note.image.data);assert.equal(ni.width,1600);assert.equal(ni.height,1200);
+ const note=await O.optimize({id:'note',name:'note.png',role:'note',data:picture(2400,1800,true)});const ni=await loadImage(note.image.data);assert.equal(ni.width,800);assert.equal(ni.height,600);
+ const portrait=await O.optimize({id:'portrait',name:'portrait.jpg',role:'note',data:picture(1200,3000)});const pi=await loadImage(portrait.image.data);assert.equal(pi.width,800);assert.equal(pi.height,2000);
+ assert.deepEqual({...O.dimensions(283,400,'cover')},{width:283,height:400});
+ assert.deepEqual({...O.dimensions(600,1800,'note')},{width:600,height:1800});
  const alpha=createCanvas(ni.width,ni.height);alpha.getContext('2d').drawImage(ni,0,0);assert.equal(alpha.getContext('2d').getImageData(0,0,1,1).data[3],0);
  const small=await O.optimize({id:'small',name:'small.jpg',role:'cover',data:picture(180,260)});const si=await loadImage(small.image.data);assert.equal(si.width,180);assert.equal(si.height,260);assert(small.after<=small.before);
  const tinySource={id:'tiny',name:'tiny.png',role:'note',data:createCanvas(2,2).toDataURL('image/png')};const tiny=await O.optimize(tinySource);assert(JSON.stringify(tiny.image).length<=JSON.stringify(tinySource).length);
@@ -28,5 +31,5 @@ function picture(w,h,alpha=false){
  await assert.rejects(()=>O.optimize({id:'broken',name:'x.png',data:'data:image/png;base64,AAAA',role:'note'}));
  const library=C.validate({...C.emptyLibrary(),books:[C.book({title:'Test',notes:'![image](attachment:note)',images:[cover.image,note.image]})]});
  const json=JSON.stringify(library);assert(!json.includes(data));assert(json.includes('attachment:note'));assert.equal(C.validate(JSON.parse(json)).books[0].images[0].data,cover.image.data);
- console.log(`PASS: actual encoding, cover 1800×2700 → ${ci.width}×${ci.height}, ${cover.before} → ${cover.after} bytes; alpha notes 1600×1200; small images, idempotence, GIF and JSON.`);
+ console.log(`PASS: actual encoding, cover 1800×2700 → ${ci.width}×${ci.height}, ${cover.before} → ${cover.after} bytes; alpha notes 800×600; small images, idempotence, GIF and JSON.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

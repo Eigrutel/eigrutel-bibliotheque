@@ -1,4 +1,4 @@
-/* Bibliothèque 1.3.2 | 2026-10-29 | Eigrutel Lab
+/* Bibliothèque 1.4.1 | 2026-11-02 | Eigrutel Lab
  * Code: GNU AGPL-3.0-or-later. Docs/models: CC BY-SA 4.0.
  * Eigrutel names and logos reserved. User content retains its own rights.
  */
@@ -17,7 +17,8 @@
     return (
       norm(name)
         .trim()
-        .replace(/[\s?？]+/g, "") === "penguin"
+        .replace(/[\s?？]+/g, "")
+        .match(/^penguin(?:classics)?$/) !== null
     );
   }
   // The historical number field also accepts a subtitle. Its leading number
@@ -138,7 +139,22 @@
       [...b.themes].sort(),
     ]);
   }
-  const noteImages = (b) => b.images.filter((im) => im.role !== "cover");
+  const noteImages = (b) =>
+    b.images.filter(
+      (im) =>
+        im.role !== "cover" &&
+        (im.role !== "summary" ||
+          b.notes.includes("(attachment:" + im.id + ")")),
+    );
+  const summaryImages = (b) =>
+    b.images.filter(
+      (im) =>
+        im.role === "summary" ||
+        (b.summary || "").includes("(attachment:" + im.id + ")"),
+    );
+  // A note may contain text, embedded images or unattached note images.
+  // A cover alone does not make a book annotated. Share this rule with exports.
+  const hasNotes = (b) => !!(b.notes.trim() || noteImages(b).length);
   function book(p = {}) {
     return {
       id:
@@ -166,10 +182,12 @@
       loanName: "",
       loanDate: "",
       notes: "",
+      summary: "",
       images: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...p,
+      summary: p.summary ?? "",
     };
   }
   // A duplicate is an independent draft. Remap embedded image references together.
@@ -188,11 +206,12 @@
       imageIds.set(image.id, id);
       image.id = id;
     });
-    copy.notes = copy.notes.replace(
-      /\]\(attachment:([^\)]+)\)/g,
-      (match, id) =>
-        imageIds.has(id) ? "](attachment:" + imageIds.get(id) + ")" : match,
-    );
+    for (const field of ["notes", "summary"])
+      copy[field] = copy[field].replace(
+        /\]\(attachment:([^\)]+)\)/g,
+        (match, id) =>
+          imageIds.has(id) ? "](attachment:" + imageIds.get(id) + ")" : match,
+      );
     return copy;
   }
   function validate(obj, fallbackPalette = PALETTE) {
@@ -231,6 +250,7 @@
       for (const k of [
         "number",
         "notes",
+        "summary",
         "collection",
         "author",
         "publisher",
@@ -273,7 +293,9 @@
           );
         images.add(im.id);
       }
-      for (const m of (b.notes || "").matchAll(/\]\(attachment:([^\)]+)\)/g))
+      for (const m of ((b.notes || "") + "\n" + (b.summary || "")).matchAll(
+        /\]\(attachment:([^\)]+)\)/g,
+      ))
         if (!images.has(m[1]))
           throw Error(
             tr("Une image citée dans les notes manque dans « ") +
@@ -633,6 +655,8 @@
     BULK_FIELDS,
     validDate,
     noteImages,
+    summaryImages,
+    hasNotes,
     FORMAT,
     PALETTE,
     clone,

@@ -2,8 +2,8 @@
 Eigrutel Lab - Atelier d'outils libres pour la bande dessinée
 Programme conçu et développé par Simon Léturgie dans le cadre d'Eigrutel BD Academy.
 Nom : eigrutel-bibliotheque
-Version : 1.3.4
-Date : 30-10-2026
+Version : 1.4.1
+Date : 02-11-2026
 Code : GNU AGPL v3.0 ou version ultérieure.
 Documentation et modèles : CC BY-SA 4.0, sauf mention contraire.
 Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Academy : réservés.
@@ -738,7 +738,8 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         font-weight: 400;
         max-width: 100%;
         overflow-wrap: anywhere;
-        hyphens: auto;
+        -webkit-hyphens: none;
+        hyphens: none;
         line-height: 1.2;
       }
       .book-card h3 {
@@ -1900,7 +1901,9 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           padding: 8px;
         }
         .topline .actions #add-btn {
-          gap: 4px;
+          gap: 2px;
+          padding-left: 7px;
+          padding-right: 12px;
         }
         .topline .actions .icon {
           width: 40px;
@@ -2349,6 +2352,138 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         flex-basis: 100%;
         overflow-wrap: anywhere;
       }
+
+      /* 1.4.1: upward page picker, note slideshow and image-size preview. */
+      .pager .page-jump {
+        position: relative;
+      }
+      #pager #page-menu {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        min-width: 120px;
+        max-height: min(260px, 55vh);
+        overflow-y: auto;
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--white);
+        box-shadow: 0 6px 22px #0002;
+      }
+      #pager #page-menu button {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        width: 100%;
+        min-height: 40px;
+        background: transparent;
+        flex-shrink: 0;
+        text-align: left;
+        justify-content: flex-start;
+        white-space: nowrap;
+      }
+      #pager #page-menu button + button {
+        border-top: 1px solid var(--line);
+      }
+      #pager #page-menu button:hover {
+        background: var(--sidebar-bg);
+      }
+      #pager #page-menu [aria-selected="true"] {
+        background: var(--red);
+        color: var(--accent-ink);
+      }
+      #view-notes {
+        font-size: 24px;
+        font-weight: 950;
+        line-height: 1;
+      }
+      .text-preview {
+        padding: 18px;
+        border: 1px solid var(--line);
+      }
+      #modal.notes-slideshow {
+        width: min(850px, 94vw);
+        max-height: 90vh;
+        padding-bottom: 0;
+      }
+      #note-slide {
+        max-height: 65vh;
+        overflow-y: auto;
+        padding: 8px 2px 24px;
+        touch-action: pan-y;
+      }
+      #note-slide h3 {
+        margin: 8px 0;
+        font-size: 22px;
+        overflow-wrap: anywhere;
+      }
+      .notes-slideshow .dialog-actions {
+        position: sticky;
+        bottom: 0;
+        background: var(--white);
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        padding: 14px 0;
+      }
+      .optimization-controls {
+        display: grid;
+        gap: 8px;
+        margin: 18px 0;
+      }
+      .optimization-controls label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .optimization-controls input {
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        accent-color: var(--red);
+      }
+      .optimization-examples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: flex-start;
+      }
+      .optimization-examples figure {
+        margin: 0;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .optimization-examples figcaption {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .optimization-sample {
+        display: flex;
+        align-items: flex-start;
+        max-width: 100%;
+        max-height: 240px;
+        width: 140px;
+      }
+      .optimization-sample img {
+        object-fit: contain;
+        object-position: top left;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      .size-placeholder {
+        width: 100%;
+        height: 100%;
+        min-height: 130px;
+        background: var(--soft);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
     </style>
   </head>
   <body>
@@ -2543,6 +2678,16 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         </div>
         <div class="collection-summary">
           <div class="stats" id="stats"></div>
+          <button
+            type="button"
+            class="icon"
+            id="view-notes"
+            title="Voir le diaporama des notes"
+            aria-label="Voir le diaporama des notes"
+            hidden
+          >
+            <span aria-hidden="true">⌕</span>
+          </button>
           <button
             class="subtle small"
             id="collection-backup-btn"
@@ -2776,6 +2921,13 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
       hidden
     />
     <input
+      id="summary-files"
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      multiple
+      hidden
+    />
+    <input
       id="cover-file"
       type="file"
       accept="image/jpeg,image/png,image/webp,image/gif"
@@ -2787,7 +2939,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
     <script>
       /* One interface, one FR/EN dictionary. Only explicit UI strings are translated. */
 const I18n = (() => {
-  const catalog = {"Fermer":"Close","Masquer le panneau":"Hide sidebar","Afficher le panneau":"Show sidebar","Le choix du panneau ne pourra pas être mémorisé.":"The sidebar preference could not be saved.","Stockage local indisponible.":"Local storage is unavailable.","Fermez les autres onglets de la bibliothèque.":"Close the other library tabs.","Un enregistrement est en cours. Réessayez dans un instant.":"A save is in progress. Try again in a moment.","La bibliothèque a changé dans un autre onglet. Sauvegardez votre fiche puis rechargez cette page avant de continuer.":"The library has changed in another tab. Back up your record, then reload this page before continuing.","Impossible d’enregistrer.":"Unable to save.","Enregistrement interrompu.":"Saving was interrupted.","Mémoire temporaire uniquement":"Temporary storage only","Enregistré sur cet appareil":"Saved on this device","Dernière sauvegarde :":"Last backup:","Bibliothèque non ouverte":"Library could not be opened","Les données présentes sur cet appareil n’ont pas pu être lues. Elles n’ont pas été remplacées.":"The data on this device could not be read. It has not been replaced.","Le navigateur refuse le stockage local. Utilisez Sauvegarder avant de fermer la page.":"The browser has blocked local storage. Use Back up before closing the page.","Mémoire temporaire : les modifications disparaîtront à la fermeture. Le bouton Sauvegarder crée un fichier complet à réimporter.":"Temporary storage: changes will be lost when this page closes. Back up creates a complete file that can be imported again.","Tous mes livres":"All my books","Favoris":"Favourites","Avec des notes":"With notes","Avec des images":"With images","Corbeille":"Trash","Sans collection":"No collection","Collection":"Collection","Auteur(s)":"Author(s)","Éditeur":"Publisher","Langue":"Language","État":"Condition","Emplacement":"Location","Année / édition":"Year / edition","Prêt à":"Lent to","Non renseigné":"Not specified","Tous / toutes":"All","Tous les domaines / thèmes":"All subjects / themes","Toutes les couleurs":"All colours","Toutes les étagères":"All shelves","Tous les types":"All types","Ma bibliothèque":"My library","Mes favoris":"My favourites","Mes notes de lecture":"My reading notes","Mes images":"My images","Les livres retirés restent ici et peuvent être restaurés.":"Removed books stay here and can be restored.","livres":"books","Afficher les livres annotés":"Show books with notes","annotés":"with notes","Afficher les livres avec des images dans les notes, hors couvertures":"Show books with images in their notes, excluding covers","avec images":"with images","livre":"book","sur":"of","dans cette sélection":"in this selection","Aucun livre ici pour le moment":"No books here yet","Essayez une autre recherche ou effacez les filtres.":"Try another search or clear the filters.","Aucun livre retiré.":"No removed books.","Ajoutez un livre pour commencer.":"Add a book to get started.","Nom":"Title","Numéro":"Number","Couleur":"Colour","Thématique":"Theme","Notes":"Notes","Favori":"Favourite","Bibliothèque":"Library","N°":"No.","Page précédente":"Previous page","Page suivante":"Next page","Terminer la sélection":"Done selecting","Sélectionner":"Select","sélectionné(s)":"selected","Tous les résultats (":"All results (","Désélectionner":"Deselect all","Modifier la sélection":"Edit selection","Prêt":"Loan","à":"to","Étagère":"Shelf","Type de livre":"Book type","Lecture":"Reading status","Nombre de pages":"Page count","Couleur(s)":"Colour(s)","Domaines / thématiques":"Subjects / themes","Nom de la personne":"Borrower name","Date de prêt":"Loan date","Les deux champs vides retirent le prêt.":"Leaving both fields empty clears the loan.","Nombre de pages pour la sélection":"Page count for selected books","Nouvel état":"New condition","Nouvelle lecture":"New reading status","Oui":"Yes","Non":"No","Nouveau favori":"New favourite status","Valeurs séparées par des virgules.":"Comma-separated values.","Modifier":"Edit","Seuls les champs cochés sont remplacés sur les":"Only checked fields are replaced on these","livres. Un champ coché laissé vide efface sa valeur. Les couleurs et thématiques choisies remplacent les listes actuelles.":"books. A checked field left empty clears its value. Selected colours and themes replace the existing lists.","Livres concernés (":"Affected books (","Titre, numéro, ISBN, couverture, notes et images jointes restent inchangés.":"Title, number, ISBN, cover, notes and attached images remain unchanged.","Annuler":"Cancel","Appliquer aux":"Apply to","fiches modifiées.":"records updated.","Domaine":"Subject","Fermer cette fiche sans enregistrer les modifications ?":"Close this record without saving changes?","Retirer des favoris":"Remove from favourites","Ajouter aux favoris":"Add to favourites","Fiche du livre":"Book record","Domaine / thème":"Subject / theme","Type":"Type","Année":"Year","Ce livre est dans la corbeille. Vous pouvez le restaurer.":"This book is in the trash. It can be restored.","Couverture":"Cover","Mes notes":"My notes","Aucune note pour le moment. « Modifier » permet d’ajouter des idées, citations et repères de lecture.":"No notes yet. Edit allows you to add ideas, quotes and reading notes.","Images jointes":"Attached images","PDF de la fiche complète":"Full record PDF","PDF des notes":"Notes PDF","Restaurer":"Restore","Retirer":"Remove","Préparation du PDF…":"Preparing PDF…","PDF prêt":"PDF ready",": notes et images jointes.":": notes and attached images.",": fiche complète, notes et images.":": full record, notes and images.","Télécharger le PDF":"Download PDF","Ouvrir le PDF":"Open PDF","permet aussi de le consulter et de l’enregistrer.":"also allows you to view and save it.","Modifier la fiche":"Edit record","Nouveau livre":"New book","Titre du livre *":"Book title *","Prêt à (nom)":"Lent to (name)","Domaines / thématiques, séparés par des virgules":"Subjects / themes, separated by commas","Image de couverture":"Cover image","Gras":"Bold","Italique":"Italic","Titre":"Heading","Liste":"List","Colorer":"Apply text colour","Surlignage":"Highlight colour","Surligner":"Highlight","Aperçu":"Preview","Couleur des caractères":"Text colour","Couleur du surlignage":"Highlight colour","Une idée, une citation, un passage à retrouver…":"An idea, a quote, a passage to revisit…","La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.":"Selecting text then choosing Apply text colour or Highlight applies the chosen colour. Preview shows the result.","Ajouter des images":"Add images","JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Les originaux sont conservés dans la sauvegarde.":"JPG, PNG, WebP or GIF, up to 15 MB per image. Backups retain the original files.","Modifications à enregistrer":"Unsaved changes","Enregistrer la fiche":"Save record","Annuler les modifications de cette fiche ?":"Discard changes to this record?","Écrire":"Write","Indiquez le titre du livre.":"Enter the book title.","Changer l’image de couverture":"Change cover image","Choisir une image de couverture":"Choose cover image","Ou choisir parmi les images de la fiche":"Or choose from this record’s images","Aucune couverture":"No cover","Cette image apparaît dans la vue Couvertures. Enregistrer la fiche conserve ce choix.":"This image appears in Cover view. Save record keeps this choice.","· Couverture":"· Cover","Dans les notes":"Insert in notes","Retirer couverture":"Remove cover","Supprimer l’image":"Delete image","Supprimer cette image de la fiche et de ses notes ?":"Delete this image from the record and its notes?","La sélection de texte indique le passage à mettre en couleur.":"Select the text to colour or highlight.","votre texte":"your text","Format non reconnu pour":"Unsupported format for","dépasse 15 Mo.":"exceeds 15 MB.","Lecture impossible :":"Unable to read:","Image illisible :":"Unreadable image:","image ajoutée":"image added","images ajoutées":"images added","Fiche gardée en mémoire. Pensez à Sauvegarder.":"Record kept in memory. Remember to back up.","Fiche enregistrée.":"Record saved.","Télécharger cette fiche":"Download this record","Fiche exportée. Vous pourrez la réimporter.":"Record exported. It can be imported again.","Déplacer «":"Move “","» dans la corbeille ?":"” to the trash?","Livre déplacé dans la corbeille.":"Book moved to trash.","Livre restauré.":"Book restored.","Original":"Original","Sauvegarde préparée : conservez le fichier téléchargé.":"Backup ready: keep the downloaded file.","Sauvegarde de «":"Backup of “","» préparée, avec ses notes et ses images.":"” ready, including notes and images.","Importer une bibliothèque":"Import a library","L’import accepte une sauvegarde":"Import accepts a","Choisir un fichier":"Choose a file","Annuler le dernier import":"Undo last import","Ce fichier dépasse la limite de 150 Mo de cette version.":"This file exceeds the 150 MB limit.","Lecture du fichier…":"Reading file…","Vérification des fiches et des images.":"Checking records and images.","Restaurer seulement «":"Restore only “","»":"”","Le fichier remplace cette collection. Les autres collections sont conservées.":"This file replaces this collection. Other collections are kept.","Restaurer toute la sauvegarde":"Restore entire backup","Le contenu exact du fichier remplace la bibliothèque actuelle.":"The exact file contents replace the current library.","Vérifier l’import":"Review import","Collection «":"Collection “","fiche":"record","fiche avec notes":"record with notes","fiches avec notes":"records with notes","nouvelle(s) fiche(s),":"new record(s),","déjà présente(s).":"already present.","Utiliser la première image comme couverture":"Use the first image as cover","Elle sera affichée en vue Couvertures. Les autres images restent dans les notes.":"It appears in Cover view. Other images stay in the notes.","Ajouter les nouvelles fiches":"Add new records","Les fiches déjà présentes, leurs notes et leurs images sont conservées.":"Existing records, notes and images are kept.","Mettre à jour les fiches correspondantes":"Update matching records","Le contenu du fichier remplace celui des fiches correspondantes, y compris les notes et images. Les autres livres restent présents.":"File contents replace matching records, including notes and images. Other books are kept.","Les exemplaires distincts de l’export sont conservés.":"Distinct copies in the export are kept.","La bibliothèque actuelle sera gardée pour permettre d’annuler cet import.":"The current library is kept so this import can be undone.","Une sauvegarde préalable conserve la bibliothèque actuelle.":"A backup made beforehand preserves the current library.","Importer":"Import","Import impossible":"Import failed","Fichier illisible.":"Unreadable file.","Votre bibliothèque n’a pas été modifiée.":"Your library has not been changed.","Remplacer toute la bibliothèque actuelle par les":"Replace the entire current library with the","fiches de ce fichier ?":"records in this file?","Restaurer la collection «":"Restore collection “","» depuis ce fichier ? Les autres collections seront conservées.":"” from this file? Other collections will be kept.","Import terminé.":"Import complete.","livres dans la bibliothèque.":"books in the library.","Annulation indisponible en mémoire temporaire. Réimportez votre sauvegarde.":"Undo is unavailable in temporary storage. Import your backup again.","Aucun import à annuler sur cet appareil.":"No import to undo on this device.","Revenir à la bibliothèque précédant le dernier import ? Les modifications faites depuis seront remplacées.":"Return to the library before the last import? Changes made since then will be replaced.","Bibliothèque précédente restaurée.":"Previous library restored.","Mes repères couleur":"My colour labels","Chaque repère possède un nom et une couleur modifiables. Ces réglages s’appliquent à toutes les fiches.":"Each label has an editable name and colour. These settings apply to all records.","Nouveau repère":"New label","Enregistrer":"Save","Nouvelle couleur":"New colour","Nouveau nom":"New name","Donnez un nom à chaque repère.":"Give each label a name.","Repères enregistrés.":"Labels saved.","Votre bibliothèque, simplement":"Your library, explained","La recherche retrouve les livres":"Search finds books","Les fiches accueillent notes et images":"Records hold notes and images","La sauvegarde emporte les données":"Backups include your data","L’import restaure les données":"Import restores data","La sélection permet les modifications groupées":"Selection enables bulk editing","À retenir :":"Remember:","les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.":"saved records stay in this browser. Devices do not sync automatically. A downloaded backup protects your data if browser storage is cleared.","Bibliothèque 1.3.4 · 30-10-2026 · Eigrutel Lab":"Library 1.3.4 · 2026-10-30 · Eigrutel Lab","Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0":"Code GNU AGPL v3.0+ · Documentation and templates CC BY-SA 4.0","Couleurs enregistrées.":"Colours saved.","Couleurs par défaut rétablies.":"Default colours restored.","La bibliothèque a changé dans un autre onglet. Rechargez cette page avant de modifier une fiche.":"The library has changed in another tab. Reload this page before editing a record.","Lien d’image incomplet dans une fiche.":"Incomplete image link in a record.","Aucune fiche de livre reconnue dans cet export.":"No book records recognised in this export.","Format d’image non pris en charge :":"Unsupported image format:","Ce fichier n’est pas une sauvegarde Bibliothèque compatible (version 1).":"This is not a compatible Library backup (schema version 1).","La limite de cette version est de 50 000 fiches.":"This version supports up to 50,000 records.","Fiche invalide ou identifiant en double à la ligne":"Invalid record or duplicate ID at row","Champ invalide :":"Invalid field:","Le nombre de pages doit être un entier positif.":"Page count must be a positive integer.","État du livre invalide.":"Invalid book condition.","Date de prêt invalide.":"Invalid loan date.","Images invalides.":"Invalid images.","Une image est invalide dans «":"An image is invalid in “","».":"”.","Une image citée dans les notes manque dans «":"An image referenced in the notes is missing in “","Palette invalide.":"Invalid palette.","Périmètre de sauvegarde inconnu.":"Unknown backup scope.","La sauvegarde de collection contient des fiches d’une autre collection.":"The collection backup contains records from another collection.","Ce fichier contient une seule collection. Choisissez « Restaurer cette collection ».":"This file contains one collection only. Choose Restore this collection.","Aucune collection identifiée dans cette sauvegarde.":"No collection identified in this backup.","Un livre de cette sauvegarde appartient maintenant à une autre collection. Utilisez la fusion pour le conserver.":"A book in this backup now belongs to another collection. Use Add new records to keep it.","Sélectionnez des livres et au moins un champ.":"Select books and at least one field.","Champ exclu des actions groupées :":"Field excluded from bulk editing:","Valeur invalide :":"Invalid value:","La sélection contient un livre indisponible.":"The selection contains an unavailable book.","- Notes":"- Notes","- Fiche complète":"- Full record","Une image du PDF ne peut pas être lue.":"An image in the PDF could not be read.","NOTES DE LECTURE":"READING NOTES","FICHE DU LIVRE":"BOOK RECORD","Couleurs":"Colours","Aucune note.":"No notes.","Bibliothèque ·":"Library ·","Fiche complète":"Full record","Mon espace":"My space","Collections":"Collections","Apparence":"Appearance","Couleur d’accent":"Accent colour","Couleur de fond":"Background colour","Couleur des filtres":"Filter colour","Aperçu en direct. « Appliquer » enregistre les couleurs.":"Live preview. Apply saves the colours.","Appliquer":"Apply","Réinitialiser les couleurs":"Reset colours","Chargement…":"Loading…","Une sauvegarde emporte aussi vos notes et vos images.":"Backups also include your notes and images.","Mode d’emploi":"User guide","Ajouter un livre":"Add a book","Sauvegarder":"Back up","Sauvegarder la collection":"Back up collection","Filtres":"Filters","Toutes les lectures":"All reading statuses","À lire":"To read","En cours":"Reading","Lu":"Read","Tous les livres":"All books","Prêtés":"On loan","Non prêtés":"Not on loan","Hors favoris":"Not favourites","Pages minimum":"Minimum pages","Pages maximum":"Maximum pages","Prêt depuis le":"Loan date from","Prêt jusqu’au":"Loan date to","Effacer les filtres":"Clear filters","Trier par":"Sort by","Numéro croissant":"Number ascending","Numéro décroissant":"Number descending","Titre de A à Z":"Title A to Z","Titre de Z à A":"Title Z to A","Dernières modifications":"Recently updated","Ouverture de votre bibliothèque…":"Opening your library…","Bibliothèque 1.3.4":"Library 1.3.4","Replier le panneau":"Collapse sidebar","Choisir la couleur d’accent":"Choose accent colour","Code de la couleur d’accent":"Accent colour code","Choisir la couleur de fond":"Choose background colour","Code de la couleur de fond":"Background colour code","Choisir la couleur des filtres":"Choose filter colour","Code de la couleur des filtres":"Filter colour code","Rechercher un titre, un numéro, une note…":"Search a title, a number, a note…","Rechercher dans la bibliothèque":"Search library","Effacer la recherche":"Clear search","Présentation":"View","Vue tableau":"Table view","Vue couvertures":"Cover view","Trier les livres":"Sort books","Fermer la fiche":"Close record","La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « annotés » inclut les notes contenant seulement une image, même sans texte. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.":"Search finds a title, a number or a word in your notes. Filters combine collection, author, publisher, language, condition, reading status, location, shelf, type, year, loans, favourites, page count, loan dates, subjects and colours. Selecting a title opens its record. Within a collection, the notes and images counters filter that collection only; selecting the counter again clears the filter. With images counts books containing images in their notes. Each book counts once, regardless of its image count. Covers are excluded. The annotated count includes image-only notes, even without text.","Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.":"Back up downloads a complete file containing books, notes, images and colour labels. The file can be saved in Files on iPad or in a folder of your choice. Back up collection, near the title, exports only the current collection with its images. Restoring a collection preserves other collections.",". Utilisez JPG, PNG, WebP ou GIF.":". Use JPG, PNG, WebP or GIF.",". Un aperçu présente le contenu avant son ajout.":". A preview shows the contents before they are added.","Chaque couleur utilise un code de six chiffres, par exemple #1F3A44.":"Each colour uses a six-digit code, such as #1F3A44.","Bibliothèque · Eigrutel Lab":"Library · Eigrutel Lab","Ouvrir":"Open","Couverture de":"Cover of","pour la sélection":"for selection","Légende de l’image":"Image caption","Légende de":"Caption for","Couleur du repère":"Label colour","Nom du repère":"Label name","Ouvrir les notes de":"Open notes for","Code source":"Source code","Nom de la bibliothèque":"Library name","Nom de la bibliothèque enregistré.":"Library name saved.","Importer une sauvegarde JSON de Bibliothèque. Un aperçu permet de vérifier son contenu avant de l’ajouter.":"Import a Library JSON backup. A preview lets you check its contents before adding it.","Les livres, notes, images, collections et repères couleur sont conservés.":"Books, notes, images, collections and colour labels are preserved.","Choisir un fichier JSON":"Choose a JSON file","Choisissez un fichier JSON Bibliothèque.":"Choose a Library JSON file.","Annuler la dernière action":"Undo last action","Rétablir la dernière action":"Redo last action","Cette modification dépasse la limite de l’historique.":"This change is too large for undo history.","Déplacer les ":"Move "," livres sélectionnés dans la corbeille ?":" selected books to the trash?"," livres déplacés dans la corbeille.":" books moved to the trash.","Modification annulée.":"Change undone.","Modification rétablie.":"Change redone.","Neuf":"New","Bon état":"Good","Occasion":"Used","Défraîchi":"Worn","Passer en anglais":"Switch to English","Vider la corbeille":"Empty trash","Vider toute la corbeille ?":"Empty the entire trash?","livre(s) seront supprimés avec leurs notes et images. Cette action est définitive et efface l’historique Annuler/Rétablir ainsi que la copie précédant le dernier import.":"book(s) will be deleted with their notes and images. This is permanent and clears Undo/Redo history and the copy saved before the last import.","La corbeille a été vidée.":"Trash emptied.","Supprimer définitivement":"Delete permanently","Supprimer définitivement ce livre ?":"Permanently delete this book?","Livre supprimé définitivement.":"Book permanently deleted.","Effacer la date":"Clear date","Livre rendu : retirer le prêt":"Book returned: clear loan","Livre rendu":"Book returned","Retour enregistré : le nom et la date de prêt ont été retirés.":"Return saved: borrower and loan date have been cleared.","Alléger les images":"Optimise images"," Mo":" MB"," Ko":" KB","Copie optimisée":"Optimised copy","Les couvertures sont réduites à 400 px de haut, les images de notes à 800 px de large. Les petites images ne sont jamais agrandies. Les animations sont conservées.":"Covers are reduced to 400 px high and note images to 800 px wide. Small images are never enlarged. Animations are preserved.","Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.":"Optimised images replace the originals in the library and future JSON backups. Keep a backup before replacing them. This operation clears Undo/Redo history and the copy saved before the last import.","Calculer le gain":"Calculate savings","Remplacer les images":"Replace images"," image(s) dans la bibliothèque, corbeille comprise.":" image(s) in the library, including trash."," image(s) optimisée(s), ":" image(s) optimised, "," conservée(s).":" kept unchanged.","Allègement estimé du JSON : ":"Estimated JSON savings: ","Images illisibles conservées : ":"Unreadable images kept unchanged: ","La bibliothèque a changé. Relancez le calcul avant de remplacer les images.":"The library has changed. Recalculate before replacing the images.","Images allégées. La prochaine sauvegarde JSON utilisera ces copies.":"Images optimised. The next JSON backup will use these copies.","Optimisation des images… ":"Optimising images… ","Les images sont en cours de traitement.":"Images are being processed.","Télécharger l’image":"Download image","Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.":"New images are automatically optimised. The backup contains optimised copies, not originals.","JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Optimisation automatique : couvertures jusqu’à 400 px de haut, notes jusqu’à 800 px de large, sans agrandissement. Les copies optimisées remplacent les originaux dans la sauvegarde. Les animations sont conservées.":"JPG, PNG, WebP or GIF, up to 15 MB per image. Automatic optimisation: covers up to 400 px high, note images up to 800 px wide, without enlargement. Optimised copies replace originals in backups. Animations are preserved.","Image illisible.":"Unreadable image.","Optimisation indisponible.":"Image optimisation unavailable.","Dupliquer":"Duplicate","Dupliquer la fiche":"Duplicate book"," (copie)":" (copy)","« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.":"Add a book creates a record. Duplicate opens an independent copy with its fields, notes and images, ready to edit before saving. Edit allows notes and images to be added. Save record keeps the changes. Full record PDF and Notes PDF export the saved content. Notes PDF includes attached images, without the cover or metadata. Page count and language are available fields. In notes, selecting text then choosing Apply text colour or Highlight applies the selected colour; Preview shows the result. Images can serve as covers or appear in notes. Lent to and Loan date record the borrower and date. Clearing both fields marks the book as returned.","Dupliquer la sélection":"Duplicate selection","fiche dupliquée":"book duplicated","fiches dupliquées":"books duplicated",". Les copies sont sélectionnées.":". The copies are selected.","« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.":"Select shows checkboxes in Table and Cover views. In this mode, tapping a book selects it without opening its record. In Cover view, dragging selects a range of books; starting on a selected book deselects the range. The screen edge scrolls during the gesture. Gaps between cards allow normal scrolling. All results selects books matching the filters across every page. Edit selection opens a dialog where only checked fields are replaced. An empty value clears a checked field. Loans can also be edited in bulk. Titles, numbers, ISBNs, covers, notes and attached images stay unchanged. Duplicate creates one copy of every selected book and selects the copies. Undo reverts the group in one action.","N° et sous-titre":"No. and subtitle","Ex. : 1 · La sirène des Caraïbes":"E.g. 1 · The Caribbean Mermaid","Exporter PDF":"Export PDF","Exporter la sélection en PDF":"Export selection as PDF"," fiche(s) sélectionnée(s).":" selected book(s).","Contenu":"Content","Fiches complètes":"Full records","Notes uniquement":"Notes only","Organisation":"Organisation","Un PDF pour toute la sélection":"One PDF for the whole selection","Un PDF par livre":"One PDF per book","Générer les PDF":"Generate PDFs","Aucune fiche sélectionnée.":"No books selected.","Sélection de livres":"Book selection","Toute la sélection":"Whole selection"," PDF prêt(s) à télécharger.":" PDF(s) ready to download.","Export interrompu : ":"Export interrupted: ","Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.":"The No. and subtitle field accepts the volume number and subtitle together. Alphabetical sorting uses the volume number when titles match. Sorting by year places missing years last.","Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. En mode notes uniquement, seules les fiches avec du texte ou des images dans les notes sont exportées. Chaque livre exporté commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.":"Export PDF offers full records or notes only, combined into one PDF or separated into one PDF per book. Each book starts on a new page. Separate PDFs have individual download links. Notes-only exports include only records with text or images in their notes.","Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.":"The library name is saved as you type. It survives other saves and Undo/Redo.","L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.":"The app starts empty. A collection named “Que sais-je ?” uses a vertical white centre stripe; “Penguin” uses a horizontal white centre stripe. A supplied cover image replaces these automatic covers. Distinct copies and original properties are preserved. Accent colour, Background colour and Filter colour are in the sidebar. The preview changes immediately. Apply saves the choice, Cancel restores the last saved choice and Reset colours restores defaults. Colours are saved on this device and included in full backups. Restoring a collection preserves the current interface colours.","Année ↑":"Year ↑","Année ↓":"Year ↓","Chaque repère possède un nom et une couleur modifiables. Ces réglages s’appliquent à toutes les fiches et sont inclus dans les sauvegardes JSON, y compris celles d’une collection.":"Each colour label has an editable name and colour. These settings apply to all records and are included in JSON backups, including collection backups.","Retirer le repère":"Remove colour label","Retirer le repère « ":"Remove the colour label “"," » ? Il est utilisé par ":"”? It is used by "," livre(s), corbeille comprise. À l’enregistrement, ce repère sera retiré de leurs fiches. Les livres, notes et images seront conservés.":" book(s), including Trash. Saving will remove this label from their records. Books, notes and images will be kept.","La croix retire un repère. « Enregistrer » applique les changements ; « Annuler » les abandonne. Le retrait peut ensuite être annulé avec le bouton Annuler de la bibliothèque.":"The cross removes a colour label. Save applies the changes; Cancel discards them. After saving, the library’s Undo button can reverse the removal.","Repères retirés invalides.":"Invalid removed colour labels.","Les repères couleur du fichier sont rétablis dans toute la bibliothèque, y compris ceux déjà présents. Les retraits enregistrés dans le fichier sont aussi appliqués. Les autres repères propres à cet appareil sont conservés lors d’un ajout, d’une mise à jour ou de la restauration d’une collection.":"The file’s colour labels are restored throughout the library, including existing labels. Saved removals are also applied. Other labels unique to this device are kept when adding, updating or restoring a collection."," fiche(s) avec des notes sur ":" record(s) with notes out of "," sélectionnée(s). Les fiches sans note sont exclues.":" selected. Records without notes are excluded.","Aucune note à exporter dans cette sélection.":"There are no notes to export in this selection."};
+  const catalog = {"Fermer":"Close","Masquer le panneau":"Hide sidebar","Afficher le panneau":"Show sidebar","Le choix du panneau ne pourra pas être mémorisé.":"The sidebar preference could not be saved.","Stockage local indisponible.":"Local storage is unavailable.","Fermez les autres onglets de la bibliothèque.":"Close the other library tabs.","Un enregistrement est en cours. Réessayez dans un instant.":"A save is in progress. Try again in a moment.","La bibliothèque a changé dans un autre onglet. Sauvegardez votre fiche puis rechargez cette page avant de continuer.":"The library has changed in another tab. Back up your record, then reload this page before continuing.","Impossible d’enregistrer.":"Unable to save.","Enregistrement interrompu.":"Saving was interrupted.","Mémoire temporaire uniquement":"Temporary storage only","Enregistré sur cet appareil":"Saved on this device","Dernière sauvegarde :":"Last backup:","Bibliothèque non ouverte":"Library could not be opened","Les données présentes sur cet appareil n’ont pas pu être lues. Elles n’ont pas été remplacées.":"The data on this device could not be read. It has not been replaced.","Le navigateur refuse le stockage local. Utilisez Sauvegarder avant de fermer la page.":"The browser has blocked local storage. Use Back up before closing the page.","Mémoire temporaire : les modifications disparaîtront à la fermeture. Le bouton Sauvegarder crée un fichier complet à réimporter.":"Temporary storage: changes will be lost when this page closes. Back up creates a complete file that can be imported again.","Tous mes livres":"All my books","Favoris":"Favourites","Avec des notes":"With notes","Avec des images":"With images","Corbeille":"Trash","Sans collection":"No collection","Collection":"Collection","Auteur(s)":"Author(s)","Éditeur":"Publisher","Langue":"Language","État":"Condition","Emplacement":"Location","Année / édition":"Year / edition","Prêt à":"Lent to","Non renseigné":"Not specified","Tous / toutes":"All","Tous les domaines / thèmes":"All subjects / themes","Toutes les couleurs":"All colours","Toutes les étagères":"All shelves","Tous les types":"All types","Ma bibliothèque":"My library","Mes favoris":"My favourites","Mes notes de lecture":"My reading notes","Mes images":"My images","Les livres retirés restent ici et peuvent être restaurés.":"Removed books stay here and can be restored.","livres":"books","Afficher les livres annotés":"Show books with notes","annotés":"with notes","Afficher les livres avec des images dans les notes, hors couvertures":"Show books with images in their notes, excluding covers","avec images":"with images","livre":"book","sur":"of","dans cette sélection":"in this selection","Aucun livre ici pour le moment":"No books here yet","Essayez une autre recherche ou effacez les filtres.":"Try another search or clear the filters.","Aucun livre retiré.":"No removed books.","Ajoutez un livre pour commencer.":"Add a book to get started.","Nom":"Title","Numéro":"Number","Couleur":"Colour","Thématique":"Theme","Notes":"Notes","Favori":"Favourite","Bibliothèque":"Library","N°":"No.","Page précédente":"Previous page","Page suivante":"Next page","Terminer la sélection":"Done selecting","Sélectionner":"Select","sélectionné(s)":"selected","Tous les résultats (":"All results (","Désélectionner":"Deselect all","Modifier la sélection":"Edit selection","Prêt":"Loan","à":"to","Étagère":"Shelf","Type de livre":"Book type","Lecture":"Reading status","Nombre de pages":"Page count","Couleur(s)":"Colour(s)","Domaines / thématiques":"Subjects / themes","Nom de la personne":"Borrower name","Date de prêt":"Loan date","Les deux champs vides retirent le prêt.":"Leaving both fields empty clears the loan.","Nombre de pages pour la sélection":"Page count for selected books","Nouvel état":"New condition","Nouvelle lecture":"New reading status","Oui":"Yes","Non":"No","Nouveau favori":"New favourite status","Valeurs séparées par des virgules.":"Comma-separated values.","Modifier":"Edit","Seuls les champs cochés sont remplacés sur les":"Only checked fields are replaced on these","livres. Un champ coché laissé vide efface sa valeur. Les couleurs et thématiques choisies remplacent les listes actuelles.":"books. A checked field left empty clears its value. Selected colours and themes replace the existing lists.","Livres concernés (":"Affected books (","Titre, numéro, ISBN, couverture, notes et images jointes restent inchangés.":"Title, number, ISBN, cover, notes and attached images remain unchanged.","Annuler":"Cancel","Appliquer aux":"Apply to","fiches modifiées.":"records updated.","Domaine":"Subject","Fermer cette fiche sans enregistrer les modifications ?":"Close this record without saving changes?","Retirer des favoris":"Remove from favourites","Ajouter aux favoris":"Add to favourites","Fiche du livre":"Book record","Domaine / thème":"Subject / theme","Type":"Type","Année":"Year","Ce livre est dans la corbeille. Vous pouvez le restaurer.":"This book is in the trash. It can be restored.","Couverture":"Cover","Mes notes":"My notes","Aucune note pour le moment. « Modifier » permet d’ajouter des idées, citations et repères de lecture.":"No notes yet. Edit allows you to add ideas, quotes and reading notes.","Images jointes":"Attached images","PDF de la fiche complète":"Full record PDF","PDF des notes":"Notes PDF","Restaurer":"Restore","Retirer":"Remove","Préparation du PDF…":"Preparing PDF…","PDF prêt":"PDF ready",": notes et images jointes.":": notes and attached images.",": fiche complète, notes et images.":": full record, notes and images.","Télécharger le PDF":"Download PDF","Ouvrir le PDF":"Open PDF","permet aussi de le consulter et de l’enregistrer.":"also allows you to view and save it.","Modifier la fiche":"Edit record","Nouveau livre":"New book","Titre du livre *":"Book title *","Prêt à (nom)":"Lent to (name)","Domaines / thématiques, séparés par des virgules":"Subjects / themes, separated by commas","Image de couverture":"Cover image","Gras":"Bold","Italique":"Italic","Titre":"Heading","Liste":"List","Colorer":"Apply text colour","Surlignage":"Highlight colour","Surligner":"Highlight","Aperçu":"Preview","Couleur des caractères":"Text colour","Couleur du surlignage":"Highlight colour","Une idée, une citation, un passage à retrouver…":"An idea, a quote, a passage to revisit…","La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.":"Selecting text then choosing Apply text colour or Highlight applies the chosen colour. Preview shows the result.","Ajouter des images":"Add images","JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Les originaux sont conservés dans la sauvegarde.":"JPG, PNG, WebP or GIF, up to 15 MB per image. Backups retain the original files.","Modifications à enregistrer":"Unsaved changes","Enregistrer la fiche":"Save record","Annuler les modifications de cette fiche ?":"Discard changes to this record?","Écrire":"Write","Indiquez le titre du livre.":"Enter the book title.","Changer l’image de couverture":"Change cover image","Choisir une image de couverture":"Choose cover image","Ou choisir parmi les images de la fiche":"Or choose from this record’s images","Aucune couverture":"No cover","Cette image apparaît dans la vue Couvertures. Enregistrer la fiche conserve ce choix.":"This image appears in Cover view. Save record keeps this choice.","· Couverture":"· Cover","Dans les notes":"Insert in notes","Retirer couverture":"Remove cover","Supprimer l’image":"Delete image","Supprimer cette image de la fiche et de ses notes ?":"Delete this image from the record and its notes?","La sélection de texte indique le passage à mettre en couleur.":"Select the text to colour or highlight.","votre texte":"your text","Format non reconnu pour":"Unsupported format for","dépasse 15 Mo.":"exceeds 15 MB.","Lecture impossible :":"Unable to read:","Image illisible :":"Unreadable image:","image ajoutée":"image added","images ajoutées":"images added","Fiche gardée en mémoire. Pensez à Sauvegarder.":"Record kept in memory. Remember to back up.","Fiche enregistrée.":"Record saved.","Télécharger cette fiche":"Download this record","Fiche exportée. Vous pourrez la réimporter.":"Record exported. It can be imported again.","Déplacer «":"Move “","» dans la corbeille ?":"” to the trash?","Livre déplacé dans la corbeille.":"Book moved to trash.","Livre restauré.":"Book restored.","Original":"Original","Sauvegarde préparée : conservez le fichier téléchargé.":"Backup ready: keep the downloaded file.","Sauvegarde de «":"Backup of “","» préparée, avec ses notes et ses images.":"” ready, including notes and images.","Importer une bibliothèque":"Import a library","L’import accepte une sauvegarde":"Import accepts a","Choisir un fichier":"Choose a file","Annuler le dernier import":"Undo last import","Ce fichier dépasse la limite de 150 Mo de cette version.":"This file exceeds the 150 MB limit.","Lecture du fichier…":"Reading file…","Vérification des fiches et des images.":"Checking records and images.","Restaurer seulement «":"Restore only “","»":"”","Le fichier remplace cette collection. Les autres collections sont conservées.":"This file replaces this collection. Other collections are kept.","Restaurer toute la sauvegarde":"Restore entire backup","Le contenu exact du fichier remplace la bibliothèque actuelle.":"The exact file contents replace the current library.","Vérifier l’import":"Review import","Collection «":"Collection “","fiche":"record","fiche avec notes":"record with notes","fiches avec notes":"records with notes","nouvelle(s) fiche(s),":"new record(s),","déjà présente(s).":"already present.","Utiliser la première image comme couverture":"Use the first image as cover","Elle sera affichée en vue Couvertures. Les autres images restent dans les notes.":"It appears in Cover view. Other images stay in the notes.","Ajouter les nouvelles fiches":"Add new records","Les fiches déjà présentes, leurs notes et leurs images sont conservées.":"Existing records, notes and images are kept.","Mettre à jour les fiches correspondantes":"Update matching records","Le contenu du fichier remplace celui des fiches correspondantes, y compris les notes et images. Les autres livres restent présents.":"File contents replace matching records, including notes and images. Other books are kept.","Les exemplaires distincts de l’export sont conservés.":"Distinct copies in the export are kept.","La bibliothèque actuelle sera gardée pour permettre d’annuler cet import.":"The current library is kept so this import can be undone.","Une sauvegarde préalable conserve la bibliothèque actuelle.":"A backup made beforehand preserves the current library.","Importer":"Import","Import impossible":"Import failed","Fichier illisible.":"Unreadable file.","Votre bibliothèque n’a pas été modifiée.":"Your library has not been changed.","Remplacer toute la bibliothèque actuelle par les":"Replace the entire current library with the","fiches de ce fichier ?":"records in this file?","Restaurer la collection «":"Restore collection “","» depuis ce fichier ? Les autres collections seront conservées.":"” from this file? Other collections will be kept.","Import terminé.":"Import complete.","livres dans la bibliothèque.":"books in the library.","Annulation indisponible en mémoire temporaire. Réimportez votre sauvegarde.":"Undo is unavailable in temporary storage. Import your backup again.","Aucun import à annuler sur cet appareil.":"No import to undo on this device.","Revenir à la bibliothèque précédant le dernier import ? Les modifications faites depuis seront remplacées.":"Return to the library before the last import? Changes made since then will be replaced.","Bibliothèque précédente restaurée.":"Previous library restored.","Mes repères couleur":"My colour labels","Chaque repère possède un nom et une couleur modifiables. Ces réglages s’appliquent à toutes les fiches.":"Each label has an editable name and colour. These settings apply to all records.","Nouveau repère":"New label","Enregistrer":"Save","Nouvelle couleur":"New colour","Nouveau nom":"New name","Donnez un nom à chaque repère.":"Give each label a name.","Repères enregistrés.":"Labels saved.","Votre bibliothèque, simplement":"Your library, explained","La recherche retrouve les livres":"Search finds books","Les fiches accueillent notes et images":"Records hold notes and images","La sauvegarde emporte les données":"Backups include your data","L’import restaure les données":"Import restores data","La sélection permet les modifications groupées":"Selection enables bulk editing","À retenir :":"Remember:","les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.":"saved records stay in this browser. Devices do not sync automatically. A downloaded backup protects your data if browser storage is cleared.","Bibliothèque 1.4.1 · 02-11-2026 · Eigrutel Lab":"Library 1.4.1 · 2026-11-02 · Eigrutel Lab","Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0":"Code GNU AGPL v3.0+ · Documentation and templates CC BY-SA 4.0","Couleurs enregistrées.":"Colours saved.","Couleurs par défaut rétablies.":"Default colours restored.","La bibliothèque a changé dans un autre onglet. Rechargez cette page avant de modifier une fiche.":"The library has changed in another tab. Reload this page before editing a record.","Lien d’image incomplet dans une fiche.":"Incomplete image link in a record.","Aucune fiche de livre reconnue dans cet export.":"No book records recognised in this export.","Format d’image non pris en charge :":"Unsupported image format:","Ce fichier n’est pas une sauvegarde Bibliothèque compatible (version 1).":"This is not a compatible Library backup (schema version 1).","La limite de cette version est de 50 000 fiches.":"This version supports up to 50,000 records.","Fiche invalide ou identifiant en double à la ligne":"Invalid record or duplicate ID at row","Champ invalide :":"Invalid field:","Le nombre de pages doit être un entier positif.":"Page count must be a positive integer.","État du livre invalide.":"Invalid book condition.","Date de prêt invalide.":"Invalid loan date.","Images invalides.":"Invalid images.","Une image est invalide dans «":"An image is invalid in “","».":"”.","Une image citée dans les notes manque dans «":"An image referenced in the notes is missing in “","Palette invalide.":"Invalid palette.","Périmètre de sauvegarde inconnu.":"Unknown backup scope.","La sauvegarde de collection contient des fiches d’une autre collection.":"The collection backup contains records from another collection.","Ce fichier contient une seule collection. Choisissez « Restaurer cette collection ».":"This file contains one collection only. Choose Restore this collection.","Aucune collection identifiée dans cette sauvegarde.":"No collection identified in this backup.","Un livre de cette sauvegarde appartient maintenant à une autre collection. Utilisez la fusion pour le conserver.":"A book in this backup now belongs to another collection. Use Add new records to keep it.","Sélectionnez des livres et au moins un champ.":"Select books and at least one field.","Champ exclu des actions groupées :":"Field excluded from bulk editing:","Valeur invalide :":"Invalid value:","La sélection contient un livre indisponible.":"The selection contains an unavailable book.","- Notes":"- Notes","- Fiche complète":"- Full record","Une image du PDF ne peut pas être lue.":"An image in the PDF could not be read.","NOTES DE LECTURE":"READING NOTES","FICHE DU LIVRE":"BOOK RECORD","Couleurs":"Colours","Aucune note.":"No notes.","Bibliothèque ·":"Library ·","Fiche complète":"Full record","Mon espace":"My space","Collections":"Collections","Apparence":"Appearance","Couleur d’accent":"Accent colour","Couleur de fond":"Background colour","Couleur des filtres":"Filter colour","Aperçu en direct. « Appliquer » enregistre les couleurs.":"Live preview. Apply saves the colours.","Appliquer":"Apply","Réinitialiser les couleurs":"Reset colours","Chargement…":"Loading…","Une sauvegarde emporte aussi vos notes et vos images.":"Backups also include your notes and images.","Mode d’emploi":"User guide","Ajouter un livre":"Add a book","Sauvegarder":"Back up","Sauvegarder la collection":"Back up collection","Filtres":"Filters","Toutes les lectures":"All reading statuses","À lire":"To read","En cours":"Reading","Lu":"Read","Tous les livres":"All books","Prêtés":"On loan","Non prêtés":"Not on loan","Hors favoris":"Not favourites","Pages minimum":"Minimum pages","Pages maximum":"Maximum pages","Prêt depuis le":"Loan date from","Prêt jusqu’au":"Loan date to","Effacer les filtres":"Clear filters","Trier par":"Sort by","Numéro croissant":"Number ascending","Numéro décroissant":"Number descending","Titre de A à Z":"Title A to Z","Titre de Z à A":"Title Z to A","Dernières modifications":"Recently updated","Ouverture de votre bibliothèque…":"Opening your library…","Bibliothèque 1.4.1":"Library 1.4.1","Replier le panneau":"Collapse sidebar","Choisir la couleur d’accent":"Choose accent colour","Code de la couleur d’accent":"Accent colour code","Choisir la couleur de fond":"Choose background colour","Code de la couleur de fond":"Background colour code","Choisir la couleur des filtres":"Choose filter colour","Code de la couleur des filtres":"Filter colour code","Rechercher un titre, un numéro, une note…":"Search a title, a number, a note…","Rechercher dans la bibliothèque":"Search library","Effacer la recherche":"Clear search","Présentation":"View","Vue tableau":"Table view","Vue couvertures":"Cover view","Trier les livres":"Sort books","Fermer la fiche":"Close record","La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « annotés » inclut les notes contenant seulement une image, même sans texte. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.":"Search finds a title, a number or a word in your notes. Filters combine collection, author, publisher, language, condition, reading status, location, shelf, type, year, loans, favourites, page count, loan dates, subjects and colours. Selecting a title opens its record. Within a collection, the notes and images counters filter that collection only; selecting the counter again clears the filter. With images counts books containing images in their notes. Each book counts once, regardless of its image count. Covers are excluded. The annotated count includes image-only notes, even without text.","Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.":"Back up downloads a complete file containing books, notes, images and colour labels. The file can be saved in Files on iPad or in a folder of your choice. Back up collection, near the title, exports only the current collection with its images. Restoring a collection preserves other collections.",". Utilisez JPG, PNG, WebP ou GIF.":". Use JPG, PNG, WebP or GIF.",". Un aperçu présente le contenu avant son ajout.":". A preview shows the contents before they are added.","Chaque couleur utilise un code de six chiffres, par exemple #1F3A44.":"Each colour uses a six-digit code, such as #1F3A44.","Bibliothèque · Eigrutel Lab":"Library · Eigrutel Lab","Ouvrir":"Open","Couverture de":"Cover of","pour la sélection":"for selection","Légende de l’image":"Image caption","Légende de":"Caption for","Couleur du repère":"Label colour","Nom du repère":"Label name","Ouvrir les notes de":"Open notes for","Code source":"Source code","Nom de la bibliothèque":"Library name","Nom de la bibliothèque enregistré.":"Library name saved.","Importer une sauvegarde JSON de Bibliothèque. Un aperçu permet de vérifier son contenu avant de l’ajouter.":"Import a Library JSON backup. A preview lets you check its contents before adding it.","Les livres, notes, images, collections et repères couleur sont conservés.":"Books, notes, images, collections and colour labels are preserved.","Choisir un fichier JSON":"Choose a JSON file","Choisissez un fichier JSON Bibliothèque.":"Choose a Library JSON file.","Annuler la dernière action":"Undo last action","Rétablir la dernière action":"Redo last action","Cette modification dépasse la limite de l’historique.":"This change is too large for undo history.","Déplacer les ":"Move "," livres sélectionnés dans la corbeille ?":" selected books to the trash?"," livres déplacés dans la corbeille.":" books moved to the trash.","Modification annulée.":"Change undone.","Modification rétablie.":"Change redone.","Neuf":"New","Bon état":"Good","Occasion":"Used","Défraîchi":"Worn","Passer en anglais":"Switch to English","Vider la corbeille":"Empty trash","Vider toute la corbeille ?":"Empty the entire trash?","livre(s) seront supprimés avec leurs notes et images. Cette action est définitive et efface l’historique Annuler/Rétablir ainsi que la copie précédant le dernier import.":"book(s) will be deleted with their notes and images. This is permanent and clears Undo/Redo history and the copy saved before the last import.","La corbeille a été vidée.":"Trash emptied.","Supprimer définitivement":"Delete permanently","Supprimer définitivement ce livre ?":"Permanently delete this book?","Livre supprimé définitivement.":"Book permanently deleted.","Effacer la date":"Clear date","Livre rendu : retirer le prêt":"Book returned: clear loan","Livre rendu":"Book returned","Retour enregistré : le nom et la date de prêt ont été retirés.":"Return saved: borrower and loan date have been cleared.","Alléger les images":"Optimise images"," Mo":" MB"," Ko":" KB","Copie optimisée":"Optimised copy","Les couvertures sont réduites à 400 px de haut, les images de notes à 800 px de large. Les petites images ne sont jamais agrandies. Les animations sont conservées.":"Covers are reduced to 400 px high and note images to 800 px wide. Small images are never enlarged. Animations are preserved.","Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.":"Optimised images replace the originals in the library and future JSON backups. Keep a backup before replacing them. This operation clears Undo/Redo history and the copy saved before the last import.","Calculer le gain":"Calculate savings","Remplacer les images":"Replace images"," image(s) dans la bibliothèque, corbeille comprise.":" image(s) in the library, including trash."," image(s) optimisée(s), ":" image(s) optimised, "," conservée(s).":" kept unchanged.","Allègement estimé du JSON : ":"Estimated JSON savings: ","Images illisibles conservées : ":"Unreadable images kept unchanged: ","La bibliothèque a changé. Relancez le calcul avant de remplacer les images.":"The library has changed. Recalculate before replacing the images.","Images allégées. La prochaine sauvegarde JSON utilisera ces copies.":"Images optimised. The next JSON backup will use these copies.","Optimisation des images… ":"Optimising images… ","Les images sont en cours de traitement.":"Images are being processed.","Télécharger l’image":"Download image","Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.":"New images are automatically optimised. The backup contains optimised copies, not originals.","JPG, PNG, WebP ou GIF, jusqu’à 15 Mo par image. Optimisation automatique : couvertures jusqu’à 400 px de haut, notes jusqu’à 800 px de large, sans agrandissement. Les copies optimisées remplacent les originaux dans la sauvegarde. Les animations sont conservées.":"JPG, PNG, WebP or GIF, up to 15 MB per image. Automatic optimisation: covers up to 400 px high, note images up to 800 px wide, without enlargement. Optimised copies replace originals in backups. Animations are preserved.","Image illisible.":"Unreadable image.","Optimisation indisponible.":"Image optimisation unavailable.","Dupliquer":"Duplicate","Dupliquer la fiche":"Duplicate book"," (copie)":" (copy)","« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.":"Add a book creates a record. Duplicate opens an independent copy with its fields, notes and images, ready to edit before saving. Edit allows notes and images to be added. Save record keeps the changes. Full record PDF and Notes PDF export the saved content. Notes PDF includes attached images, without the cover or metadata. Page count and language are available fields. In notes, selecting text then choosing Apply text colour or Highlight applies the selected colour; Preview shows the result. Images can serve as covers or appear in notes. Lent to and Loan date record the borrower and date. Clearing both fields marks the book as returned.","Dupliquer la sélection":"Duplicate selection","fiche dupliquée":"book duplicated","fiches dupliquées":"books duplicated",". Les copies sont sélectionnées.":". The copies are selected.","« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.":"Select shows checkboxes in Table and Cover views. In this mode, tapping a book selects it without opening its record. In Cover view, dragging selects a range of books; starting on a selected book deselects the range. The screen edge scrolls during the gesture. Gaps between cards allow normal scrolling. All results selects books matching the filters across every page. Edit selection opens a dialog where only checked fields are replaced. An empty value clears a checked field. Loans can also be edited in bulk. Titles, numbers, ISBNs, covers, notes and attached images stay unchanged. Duplicate creates one copy of every selected book and selects the copies. Undo reverts the group in one action.","N° et sous-titre":"No. and subtitle","Ex. : 1 · La sirène des Caraïbes":"E.g. 1 · The Caribbean Mermaid","Exporter PDF":"Export PDF","Exporter la sélection en PDF":"Export selection as PDF"," fiche(s) sélectionnée(s).":" selected book(s).","Contenu":"Content","Fiches complètes":"Full records","Notes uniquement":"Notes only","Organisation":"Organisation","Un PDF pour toute la sélection":"One PDF for the whole selection","Un PDF par livre":"One PDF per book","Générer les PDF":"Generate PDFs","Aucune fiche sélectionnée.":"No books selected.","Sélection de livres":"Book selection","Toute la sélection":"Whole selection"," PDF prêt(s) à télécharger.":" PDF(s) ready to download.","Export interrompu : ":"Export interrupted: ","Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.":"The No. and subtitle field accepts the volume number and subtitle together. Alphabetical sorting uses the volume number when titles match. Sorting by year places missing years last.","Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. En mode notes uniquement, seules les fiches avec du texte ou des images dans les notes sont exportées. Chaque livre exporté commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.":"Export PDF offers full records or notes only, combined into one PDF or separated into one PDF per book. Each book starts on a new page. Separate PDFs have individual download links. Notes-only exports include only records with text or images in their notes.","Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.":"The library name is saved as you type. It survives other saves and Undo/Redo.","L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.":"The app starts empty. A collection named “Que sais-je ?” uses a vertical white centre stripe; “Penguin” uses a horizontal white centre stripe. A supplied cover image replaces these automatic covers. Distinct copies and original properties are preserved. Accent colour, Background colour and Filter colour are in the sidebar. The preview changes immediately. Apply saves the choice, Cancel restores the last saved choice and Reset colours restores defaults. Colours are saved on this device and included in full backups. Restoring a collection preserves the current interface colours.","Année ↑":"Year ↑","Année ↓":"Year ↓","Chaque repère possède un nom et une couleur modifiables. Ces réglages s’appliquent à toutes les fiches et sont inclus dans les sauvegardes JSON, y compris celles d’une collection.":"Each colour label has an editable name and colour. These settings apply to all records and are included in JSON backups, including collection backups.","Retirer le repère":"Remove colour label","Retirer le repère « ":"Remove the colour label “"," » ? Il est utilisé par ":"”? It is used by "," livre(s), corbeille comprise. À l’enregistrement, ce repère sera retiré de leurs fiches. Les livres, notes et images seront conservés.":" book(s), including Trash. Saving will remove this label from their records. Books, notes and images will be kept.","La croix retire un repère. « Enregistrer » applique les changements ; « Annuler » les abandonne. Le retrait peut ensuite être annulé avec le bouton Annuler de la bibliothèque.":"The cross removes a colour label. Save applies the changes; Cancel discards them. After saving, the library’s Undo button can reverse the removal.","Repères retirés invalides.":"Invalid removed colour labels.","Les repères couleur du fichier sont rétablis dans toute la bibliothèque, y compris ceux déjà présents. Les retraits enregistrés dans le fichier sont aussi appliqués. Les autres repères propres à cet appareil sont conservés lors d’un ajout, d’une mise à jour ou de la restauration d’une collection.":"The file’s colour labels are restored throughout the library, including existing labels. Saved removals are also applied. Other labels unique to this device are kept when adding, updating or restoring a collection."," fiche(s) avec des notes sur ":" record(s) with notes out of "," sélectionnée(s). Les fiches sans note sont exclues.":" selected. Records without notes are excluded.","Aucune note à exporter dans cette sélection.":"There are no notes to export in this selection.","Résumé":"Summary","Aucun résumé.":"No summary.","Ajouter des images au résumé":"Add images to the summary","Dans le résumé":"In the summary","Fiche complète sans note":"Full record without notes"," : fiche complète sans les notes.":" : full record without notes.","Aller à la page":"Go to page","Choisir une page":"Choose a page","Page":"Page","Voir":"View","Diaporama des notes":"Notes slideshow","Précédent":"Previous","Suivant":"Next","Hauteur des couvertures":"Cover height","Largeur des images de notes":"Note image width","Images des notes":"Note images","Exemple de dimensions":"Sample dimensions","Les petites images ne sont jamais agrandies. Les animations sont conservées. Les réglages restent provisoires jusqu’au remplacement des images.":"Small images are never enlarged. Animations are preserved. Settings remain provisional until the images are replaced.","Aperçu réduit à l’écran. Les dimensions indiquées sont celles du fichier. « Annuler » conserve les images actuelles.":"The preview is scaled down on screen. The displayed dimensions are those of the file. Cancel keeps the current images.","La liste affiche jusqu’à 100 livres par page. Le numéro de page ouvre un menu vers le haut. Le résumé possède son propre éditeur et ses images ; il reste distinct des notes. « Fiche complète sans note » conserve le résumé et exclut les notes. La loupe ouvre le diaporama des notes de la vue filtrée. Le style Penguin reconnaît Penguin et Penguin Classics dans la collection ou l’éditeur. Dans « Alléger les images », les curseurs règlent la hauteur des couvertures de 200 à 400 px et la largeur des images de notes de 600 à 800 px. Le calcul présente le gain avant remplacement ; Annuler conserve les images enregistrées.":"The list displays up to 100 books per page. The page number opens an upward menu. Summary has its own editor and images, separate from notes. “Full record without notes” keeps the summary and excludes notes. The magnifier opens a slideshow of notes in the filtered view. Penguin styling recognises Penguin and Penguin Classics in the collection or publisher. In “Optimise images”, sliders set cover height from 200 to 400 px and note image width from 600 to 800 px. Calculation shows the savings before replacement; Cancel keeps the saved images.","Voir le diaporama des notes":"View the notes slideshow"};
   const english = Object.fromEntries(
     Object.entries(catalog).map(([key, value]) => [key.trim(), value.trim()]),
   );
@@ -2879,7 +3031,7 @@ I18n.bindStatic();
 ;
     </script>
     <script>
-      /* Bibliothèque 1.3.4 | 2026-10-30 | Eigrutel Lab
+      /* Bibliothèque 1.4.1 | 2026-11-02 | Eigrutel Lab
  * Code: GNU AGPL-3.0-or-later. Docs/models: CC BY-SA 4.0.
  * Eigrutel names and logos reserved. User content retains its own rights.
  */
@@ -2898,7 +3050,8 @@ I18n.bindStatic();
     return (
       norm(name)
         .trim()
-        .replace(/[\s?？]+/g, "") === "penguin"
+        .replace(/[\s?？]+/g, "")
+        .match(/^penguin(?:classics)?$/) !== null
     );
   }
   // The historical number field also accepts a subtitle. Its leading number
@@ -3019,7 +3172,19 @@ I18n.bindStatic();
       [...b.themes].sort(),
     ]);
   }
-  const noteImages = (b) => b.images.filter((im) => im.role !== "cover");
+  const noteImages = (b) =>
+    b.images.filter(
+      (im) =>
+        im.role !== "cover" &&
+        (im.role !== "summary" ||
+          b.notes.includes("(attachment:" + im.id + ")")),
+    );
+  const summaryImages = (b) =>
+    b.images.filter(
+      (im) =>
+        im.role === "summary" ||
+        (b.summary || "").includes("(attachment:" + im.id + ")"),
+    );
   // A note may contain text, embedded images or unattached note images.
   // A cover alone does not make a book annotated. Share this rule with exports.
   const hasNotes = (b) => !!(b.notes.trim() || noteImages(b).length);
@@ -3050,10 +3215,12 @@ I18n.bindStatic();
       loanName: "",
       loanDate: "",
       notes: "",
+      summary: "",
       images: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...p,
+      summary: p.summary ?? "",
     };
   }
   // A duplicate is an independent draft. Remap embedded image references together.
@@ -3072,11 +3239,12 @@ I18n.bindStatic();
       imageIds.set(image.id, id);
       image.id = id;
     });
-    copy.notes = copy.notes.replace(
-      /\]\(attachment:([^\)]+)\)/g,
-      (match, id) =>
-        imageIds.has(id) ? "](attachment:" + imageIds.get(id) + ")" : match,
-    );
+    for (const field of ["notes", "summary"])
+      copy[field] = copy[field].replace(
+        /\]\(attachment:([^\)]+)\)/g,
+        (match, id) =>
+          imageIds.has(id) ? "](attachment:" + imageIds.get(id) + ")" : match,
+      );
     return copy;
   }
   function validate(obj, fallbackPalette = PALETTE) {
@@ -3115,6 +3283,7 @@ I18n.bindStatic();
       for (const k of [
         "number",
         "notes",
+        "summary",
         "collection",
         "author",
         "publisher",
@@ -3157,7 +3326,9 @@ I18n.bindStatic();
           );
         images.add(im.id);
       }
-      for (const m of (b.notes || "").matchAll(/\]\(attachment:([^\)]+)\)/g))
+      for (const m of ((b.notes || "") + "\n" + (b.summary || "")).matchAll(
+        /\]\(attachment:([^\)]+)\)/g,
+      ))
         if (!images.has(m[1]))
           throw Error(
             tr("Une image citée dans les notes manque dans « ") +
@@ -3517,6 +3688,7 @@ I18n.bindStatic();
     BULK_FIELDS,
     validDate,
     noteImages,
+    summaryImages,
     hasNotes,
     FORMAT,
     PALETTE,
@@ -3574,10 +3746,12 @@ const LibraryPDF = {
     libraryName = "",
     labels = (value) => value,
     onProgress = () => {},
+    options = {},
   ) {
     const { PDFDocument, rgb, degrees } = PDFLib,
       C = LibCore,
       pdf = await PDFDocument.create();
+    const includeNotes = notesOnly || options.includeNotes !== false;
     const books = Array.isArray(book)
       ? notesOnly
         ? book.filter(C.hasNotes)
@@ -3850,48 +4024,63 @@ const LibraryPDF = {
               4,
             );
         y -= 12 * density;
-        room(50 * density);
-        await plain(I18n.t("Mes notes"), 16, { bold: true });
       }
-      const root = document.createElement("div");
-      root.innerHTML = C.renderNotes(book.notes, book.images);
-      const seen = new Set();
-      async function block(node) {
-        if (node.tagName === "FIGURE") {
-          const id = node.querySelector("[data-image]")?.dataset.image,
-            im = book.images.find((x) => x.id === id);
-          if (im) {
-            await image(im.data, im.caption || "");
-            seen.add(id);
+      async function content(field, attachments) {
+        const root = document.createElement("div");
+        root.innerHTML = C.renderNotes(book[field] || "", book.images);
+        const seen = new Set();
+        async function block(node) {
+          if (node.tagName === "FIGURE") {
+            const id = node.querySelector("[data-image]")?.dataset.image,
+              im = book.images.find((x) => x.id === id);
+            if (im) {
+              await image(im.data, im.caption || "");
+              seen.add(id);
+            }
+            return;
           }
-          return;
+          if (node.tagName === "UL") {
+            for (const li of node.children)
+              await text([{ text: "• " }, ...runs(li)], 11, 12);
+            return;
+          }
+          if (node.classList.contains("note-space")) {
+            y -= 7 * density;
+            return;
+          }
+          const heading = /^H[1-6]$/.test(node.tagName);
+          if (heading) room(70 * density);
+          await text(
+            runs(node, heading ? { bold: true } : {}),
+            heading ? 15 : 11,
+          );
         }
-        if (node.tagName === "UL") {
-          for (const li of node.children)
-            await text([{ text: "• " }, ...runs(li)], 11, 12);
-          return;
+        for (const node of root.children) await block(node);
+        const detached = attachments.filter((im) => !seen.has(im.id));
+        if (!(book[field] || "").trim() && !detached.length)
+          await plain(I18n.t("Aucune note."), 11, { italic: true });
+        if (detached.length) {
+          room(60 * density);
+          await plain(I18n.t("Images jointes"), 14, { bold: true });
+          for (const im of detached)
+            await image(im.data, im.caption || im.name);
         }
-        if (node.classList.contains("note-space")) {
-          y -= 7 * density;
-          return;
-        }
-        const heading = /^H[1-6]$/.test(node.tagName);
-        if (heading) room(70 * density);
-        await text(
-          runs(node, heading ? { bold: true } : {}),
-          heading ? 15 : 11,
-        );
       }
-      for (const node of root.children) await block(node);
-      const detached = book.images.filter(
-        (im) => im.role !== "cover" && !seen.has(im.id),
-      );
-      if (!book.notes.trim() && !detached.length)
-        await plain(I18n.t("Aucune note."), 11, { italic: true });
-      if (detached.length) {
-        room(60 * density);
-        await plain(I18n.t("Images jointes"), 14, { bold: true });
-        for (const im of detached) await image(im.data, im.caption || im.name);
+      if (
+        !notesOnly &&
+        ((book.summary || "").trim() || C.summaryImages(book).length)
+      ) {
+        room(50 * density);
+        await plain(I18n.t("Résumé"), 16, { bold: true });
+        await content("summary", C.summaryImages(book));
+        y -= 12 * density;
+      }
+      if (includeNotes) {
+        if (!notesOnly) {
+          room(50 * density);
+          await plain(I18n.t("Mes notes"), 16, { bold: true });
+        }
+        await content("notes", C.noteImages(book));
       }
       onProgress(bookIndex + 1, books.length);
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -3943,11 +4132,21 @@ const ImageOptimizer = (() => {
       (text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0)
     );
   }
-  function dimensions(width, height, role) {
+  function limits(options = {}) {
+    return {
+      coverHeight: Math.min(
+        400,
+        Math.max(200, Number(options.coverHeight) || 400),
+      ),
+      noteWidth: Math.min(800, Math.max(600, Number(options.noteWidth) || 800)),
+    };
+  }
+  function dimensions(width, height, role, options = {}) {
+    const sizes = limits(options);
     const scale =
       role === "cover"
-        ? Math.min(1, 400 / height, 960 / width)
-        : Math.min(1, 800 / width);
+        ? Math.min(1, sizes.coverHeight / height, 960 / width)
+        : Math.min(1, sizes.noteWidth / width);
     return {
       width: Math.max(1, Math.round(width * scale)),
       height: Math.max(1, Math.round(height * scale)),
@@ -3990,7 +4189,7 @@ const ImageOptimizer = (() => {
     }
     return false;
   }
-  async function optimize(image) {
+  async function optimize(image, options = {}) {
     const original = image.data,
       before = bytes(original);
     const unchanged = (reason) => ({
@@ -4003,7 +4202,7 @@ const ImageOptimizer = (() => {
     const keepAnimation = animated(original);
     const prior = image.optimization;
     if (prior?.version === VERSION && prior.bytes === before) {
-      const target = dimensions(prior.width, prior.height, image.role);
+      const target = dimensions(prior.width, prior.height, image.role, options);
       if (target.width === prior.width && target.height === prior.height)
         return unchanged("optimized");
     }
@@ -4031,7 +4230,7 @@ const ImageOptimizer = (() => {
             : I18n.t("Image illisible."),
         );
       if (keepAnimation) return unchanged("animation");
-      const target = dimensions(w, h, image.role);
+      const target = dimensions(w, h, image.role, options);
       canvas = document.createElement("canvas");
       canvas.width = target.width;
       canvas.height = target.height;
@@ -4097,7 +4296,7 @@ const ImageOptimizer = (() => {
       }
     }
   }
-  return { bytes, dimensions, optimize };
+  return { bytes, dimensions, optimize, limits };
 })();
 if (typeof module !== "undefined" && module.exports)
   module.exports = ImageOptimizer;
@@ -4171,7 +4370,7 @@ const HISTORY_LIMIT = 30,
   HISTORY_ENTRY_LIMIT = 12 * 1024 * 1024;
 let incoming = null,
   contentFilter = "";
-const pageSize = 50;
+const pageSize = 100;
 const channel =
   typeof BroadcastChannel === "function"
     ? new BroadcastChannel("eigrutel-bibliotheque")
@@ -5084,6 +5283,7 @@ function filtered() {
                 b.number,
                 b.author,
                 b.notes,
+                b.summary,
                 b.isbn,
                 b.collection,
                 b.location,
@@ -5220,7 +5420,11 @@ function renderList() {
             '<tr><td><div class="title-cell"><span class="book-mark" style="background:' +
             (b.colors.length ? color(b.colors[0]).hex : "#d5cbbb") +
             '">' +
-            (im ? '<img alt="" src="' + im.data + '">' : "") +
+            (im
+              ? '<img loading="lazy" decoding="async" alt="" src="' +
+                im.data +
+                '">'
+              : "") +
             '</span><button class="book-open" data-book="' +
             C.esc(b.id) +
             '">' +
@@ -5267,7 +5471,7 @@ function renderList() {
             C.esc(b.title) +
             '">' +
             (im
-              ? '<img src="' +
+              ? '<img loading="lazy" decoding="async" src="' +
                 im.data +
                 I18n.html('" alt="Couverture de ') +
                 C.esc(b.title) +
@@ -5275,7 +5479,7 @@ function renderList() {
               : '<div class="faux-cover ' +
                 (C.isQueSaisJe(b.collection)
                   ? "que-sais-je"
-                  : C.isPenguin(b.collection)
+                  : C.isPenguin(b.collection) || C.isPenguin(b.publisher)
                     ? "penguin"
                     : "") +
                 '" style="--cover-color:' +
@@ -5320,11 +5524,15 @@ function renderList() {
     (page <= 1 ? "disabled" : "") +
     ">" +
     icon("left") +
-    "</button><span>" +
+    '</button><div class="page-jump"><button type="button" class="subtle" id="page-jump-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="page-menu" aria-label="' +
+    I18n.t("Aller à la page") +
+    '">' +
     page +
     " / " +
     Math.max(1, Math.ceil(list.length / pageSize)) +
-    I18n.html('</span><button id="next-page" aria-label="Page suivante" ') +
+    I18n.html(
+      '</button><div id="page-menu" role="listbox" aria-label="Choisir une page" hidden></div></div><button id="next-page" aria-label="Page suivante" ',
+    ) +
     (page * pageSize >= list.length ? "disabled" : "") +
     ">" +
     icon("right") +
@@ -5339,6 +5547,13 @@ function renderList() {
     renderList();
     $(".toolbar").scrollIntoView({ block: "start" });
   };
+  bindPageJump(Math.max(1, Math.ceil(list.length / pageSize)));
+  const showNotes = [scope, contentFilter].some(
+    (x) => x === "notes" || x === "images",
+  );
+  $("#view-notes").hidden = !showNotes;
+  $("#view-notes").disabled = !list.some(hasNotes);
+  $("#view-notes").onclick = () => showNotesSlideshow(list.filter(hasNotes));
   renderBulkSelection(list);
   $$("[data-book]").forEach(
     (el) =>
@@ -5980,6 +6195,282 @@ function bindImages(root, b) {
     .querySelectorAll("[data-image]")
     .forEach((btn) => (btn.onclick = () => showImage(b, btn.dataset.image)));
 }
+// The same safe markup renderer is used for notes, summaries and the slideshow.
+function textContent(book, key) {
+  const text = book[key] || "";
+  const images = key === "summary" ? C.summaryImages(book) : C.noteImages(book);
+  const detached = images.filter(
+    (im) => !text.includes("(attachment:" + im.id + ")"),
+  );
+  if (!text.trim() && !images.length)
+    return (
+      '<p class="muted">' +
+      I18n.t(key === "summary" ? "Aucun résumé." : "Aucune note.") +
+      "</p>"
+    );
+  return (
+    C.renderNotes(text, book.images) +
+    detached
+      .map(
+        (im) =>
+          '<figure><button type="button" class="note-image" data-image="' +
+          C.esc(im.id) +
+          '"><img loading="lazy" src="' +
+          im.data +
+          '" alt="' +
+          C.esc(im.caption || im.name) +
+          '"></button><figcaption>' +
+          C.esc(im.caption || im.name) +
+          "</figcaption></figure>",
+      )
+      .join("")
+  );
+}
+function textEditor(key, label, value) {
+  const prefix = key === "notes" ? "note" : "summary";
+  return (
+    '<section class="text-editor" data-text-editor="' +
+    key +
+    '"><h3 class="section-label">' +
+    label +
+    '</h3><div class="format-bar">' +
+    [
+      ["bold", "Gras"],
+      ["italic", "Italique"],
+      ["heading", "Titre"],
+      ["list", "Liste"],
+    ]
+      .map(
+        ([type, title]) =>
+          '<button type="button" data-format="' +
+          type +
+          '">' +
+          I18n.t(title) +
+          "</button>",
+      )
+      .join("") +
+    '<label class="note-color-label">' +
+    I18n.t("Couleur") +
+    '<input type="color" id="' +
+    prefix +
+    '-text-color" value="#004d65" aria-label="' +
+    I18n.t("Couleur des caractères") +
+    '"></label>' +
+    '<button type="button" id="apply-' +
+    prefix +
+    '-color">' +
+    I18n.t("Colorer") +
+    "</button>" +
+    '<label class="note-color-label">' +
+    I18n.t("Surlignage") +
+    '<input type="color" id="' +
+    prefix +
+    '-highlight-color" value="#ffe58a" aria-label="' +
+    I18n.t("Couleur du surlignage") +
+    '"></label>' +
+    '<button type="button" id="apply-' +
+    prefix +
+    '-highlight">' +
+    I18n.t("Surligner") +
+    "</button>" +
+    '<button type="button" id="preview-' +
+    key +
+    '" style="margin-left:auto">' +
+    I18n.t("Aperçu") +
+    "</button></div>" +
+    '<label for="f-' +
+    key +
+    '" hidden>' +
+    label +
+    '</label><textarea class="notes-input" id="f-' +
+    key +
+    '">' +
+    C.esc(value || "") +
+    "</textarea>" +
+    '<div id="' +
+    key +
+    '-preview" class="notes text-preview" hidden></div>' +
+    (key === "summary"
+      ? '<button type="button" class="small" id="add-summary-images">' +
+        I18n.t("Ajouter des images au résumé") +
+        "</button>"
+      : "") +
+    '<p class="hint">' +
+    I18n.t(
+      "La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.",
+    ) +
+    "</p></section>"
+  );
+}
+function bindTextEditor(key) {
+  const prefix = key === "notes" ? "note" : "summary";
+  $("#apply-" + prefix + "-color").onclick = () =>
+    colorNote("color", $("#" + prefix + "-text-color").value, key);
+  $("#apply-" + prefix + "-highlight").onclick = () =>
+    colorNote("highlight", $("#" + prefix + "-highlight-color").value, key);
+  $$('[data-text-editor="' + key + '"] [data-format]').forEach(
+    (el) => (el.onclick = () => formatNote(el.dataset.format, key)),
+  );
+  $("#preview-" + key).onclick = () => {
+    const preview = $("#" + key + "-preview"),
+      show = preview.hidden;
+    preview.hidden = !show;
+    $("#f-" + key).hidden = show;
+    $("#preview-" + key).textContent = I18n.t(show ? "Écrire" : "Aperçu");
+    if (show) {
+      preview.innerHTML = textContent(
+        { ...draft, [key]: $("#f-" + key).value },
+        key,
+      );
+      bindImages(preview, draft);
+    }
+  };
+  if (key === "summary")
+    $("#add-summary-images").onclick = () => $("#summary-files").click();
+}
+function bindPageJump(total) {
+  const toggle = $("#page-jump-toggle"),
+    menu = $("#page-menu");
+  toggle.disabled = total <= 1;
+  menu.innerHTML = Array.from(
+    { length: total },
+    (_, i) =>
+      '<button type="button" role="option" aria-selected="' +
+      (i + 1 === page) +
+      '" data-page="' +
+      (i + 1) +
+      '">' +
+      I18n.t("Page") +
+      " " +
+      (i + 1) +
+      "</button>",
+  ).join("");
+  const close = () => {
+    menu.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  };
+  toggle.onclick = () => {
+    menu.hidden = !menu.hidden;
+    toggle.setAttribute("aria-expanded", String(!menu.hidden));
+    if (!menu.hidden) {
+      const current = menu.querySelector('[aria-selected="true"]');
+      current.focus({ preventScroll: true });
+      current.scrollIntoView({ block: "nearest" });
+    }
+  };
+  menu.onclick = (event) => {
+    const target = event.target.closest("[data-page]");
+    if (!target) return;
+    page = Number(target.dataset.page);
+    renderList();
+    $(".toolbar").scrollIntoView({ block: "start" });
+    $("#page-jump-toggle").focus({ preventScroll: true });
+  };
+  menu.onkeydown = (event) => {
+    const options = [...menu.querySelectorAll("[data-page]")];
+    const index = options.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      close();
+      toggle.focus();
+    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? total - 1
+            : Math.max(
+                0,
+                Math.min(
+                  total - 1,
+                  index + (event.key === "ArrowDown" ? 1 : -1),
+                ),
+              );
+      options[next].focus();
+    }
+  };
+}
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".page-jump")) {
+    const menu = $("#page-menu");
+    if (menu) {
+      menu.hidden = true;
+      $("#page-jump-toggle").setAttribute("aria-expanded", "false");
+    }
+  }
+});
+// Only the current note is rendered, even when the filtered list is very large.
+function showNotesSlideshow(books) {
+  if (!books.length) return;
+  let index = 0,
+    touch = null;
+  const dialog = modal(
+    I18n.t("Diaporama des notes"),
+    '<div id="note-slide" tabindex="0"></div>',
+    '<button id="slide-prev" aria-label="' +
+      I18n.t("Précédent") +
+      '">' +
+      icon("left") +
+      '</button><span id="slide-position" role="status"></span><button id="slide-next" aria-label="' +
+      I18n.t("Suivant") +
+      '">' +
+      icon("right") +
+      "</button>",
+  );
+  dialog.classList.add("notes-slideshow");
+  const draw = () => {
+    const book = books[index];
+    $("#note-slide").innerHTML =
+      "<h3>" +
+      C.esc(book.title) +
+      '</h3><p class="muted">' +
+      C.esc([book.number, book.author].filter(Boolean).join(" · ")) +
+      '</p><div class="notes">' +
+      textContent(book, "notes") +
+      "</div>";
+    $("#note-slide").scrollTop = 0;
+    $("#slide-position").textContent = index + 1 + " / " + books.length;
+    $("#slide-prev").disabled = index === 0;
+    $("#slide-next").disabled = index === books.length - 1;
+    bindImages($("#note-slide"), book);
+  };
+  const move = (step) => {
+    index = Math.max(0, Math.min(books.length - 1, index + step));
+    draw();
+  };
+  $("#slide-prev").onclick = () => move(-1);
+  $("#slide-next").onclick = () => move(1);
+  const keydown = (event) => {
+    if ($("#lightbox").open) return;
+    if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      move(event.key === "ArrowLeft" ? -1 : 1);
+    }
+  };
+  dialog.addEventListener("keydown", keydown);
+  $("#note-slide").ontouchstart = (event) => {
+    if (event.touches.length === 1)
+      touch = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  };
+  $("#note-slide").ontouchend = (event) => {
+    if (!touch || !event.changedTouches.length) return;
+    const dx = event.changedTouches[0].clientX - touch.x,
+      dy = event.changedTouches[0].clientY - touch.y;
+    touch = null;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2)
+      move(dx < 0 ? 1 : -1);
+  };
+  dialog.addEventListener(
+    "close",
+    () => {
+      dialog.classList.remove("notes-slideshow");
+      dialog.removeEventListener("keydown", keydown);
+      $("#view-notes").focus({ preventScroll: true });
+    },
+    { once: true },
+  );
+  draw();
+}
 function renderDetail() {
   $("#drawer-label").textContent = draft.collection || I18n.t("Fiche du livre");
   renderFavorite();
@@ -6007,11 +6498,6 @@ function renderDetail() {
       ),
     ],
   ];
-  const detached = draft.images.filter(
-    (im) =>
-      im.role !== "cover" &&
-      !draft.notes.includes("(attachment:" + im.id + ")"),
-  );
   $("#drawer-body").innerHTML =
     (draft.deletedAt
       ? I18n.html(
@@ -6034,45 +6520,32 @@ function renderDetail() {
       .filter(([n, v]) => v && v !== '<span class="swatches"></span>')
       .map(([n, v]) => "<dt>" + n + "</dt><dd>" + v + "</dd>")
       .join("") +
-    I18n.html(
-      '</dl><h3 class="section-label">Mes notes</h3><div class="notes">',
-    ) +
-    (draft.notes.trim()
-      ? C.renderNotes(draft.notes, draft.images)
-      : I18n.html(
-          '<p class="muted">Aucune note pour le moment. « Modifier » permet d’ajouter des idées, citations et repères de lecture.</p>',
-        )) +
-    "</div>" +
-    (detached.length
-      ? I18n.html(
-          '<h3 class="section-label">Images jointes</h3><div class="notes">',
-        ) +
-        detached
-          .map(
-            (im) =>
-              '<figure><button class="note-image" data-image="' +
-              C.esc(im.id) +
-              '"><img loading="lazy" src="' +
-              im.data +
-              '" alt="' +
-              C.esc(im.caption || im.name) +
-              '"></button><figcaption>' +
-              C.esc(im.caption || im.name) +
-              "</figcaption></figure>",
-          )
-          .join("") +
+    "</dl>" +
+    ((draft.summary || "").trim() || C.summaryImages(draft).length
+      ? '<h3 class="section-label">' +
+        I18n.t("Résumé") +
+        '</h3><div class="notes">' +
+        textContent(draft, "summary") +
         "</div>"
-      : "");
+      : "") +
+    '<h3 class="section-label">' +
+    I18n.t("Mes notes") +
+    '</h3><div class="notes">' +
+    textContent(draft, "notes") +
+    "</div>";
   $("#drawer-body").insertAdjacentHTML(
     "beforeend",
     '<div class="pdf-actions"><button id="pdf-full">' +
       icon("download") +
-      I18n.html('PDF de la fiche complète</button><button id="pdf-notes">') +
+      I18n.html('PDF de la fiche complète</button><button id="pdf-no-notes">') +
+      icon("download") +
+      I18n.html('Fiche complète sans note</button><button id="pdf-notes">') +
       icon("download") +
       I18n.html("PDF des notes</button></div>"),
   );
   $("#pdf-full").onclick = () => exportBookPDF(false);
   $("#pdf-notes").onclick = () => exportBookPDF(true);
+  $("#pdf-no-notes").onclick = () => exportBookPDF(false, false);
   $("#drawer-footer").innerHTML =
     '<div><button class="subtle danger small" id="delete-book">' +
     icon(draft.deletedAt ? "restore" : "trash") +
@@ -6115,7 +6588,7 @@ function renderDetail() {
   $("#delete-book").onclick = () => removeBook();
   bindImages($("#drawer-body"), draft);
 }
-function pdfFilename(book, notesOnly, libraryName) {
+function pdfFilename(book, notesOnly, libraryName, includeNotes = true) {
   const stem =
     C.norm([book.title, book.number].filter(Boolean).join(" "))
       .replace(/[^a-z0-9]+/g, "-")
@@ -6123,7 +6596,10 @@ function pdfFilename(book, notesOnly, libraryName) {
       .slice(0, 100) || I18n.t("livre");
   const slug = librarySlug(libraryName);
   return (
-    stem + (slug ? "_" + slug : "") + (notesOnly ? "_notes" : "_fiche") + ".pdf"
+    stem +
+    (slug ? "_" + slug : "") +
+    (notesOnly ? "_notes" : includeNotes ? "_fiche" : "_fiche_sans_notes") +
+    ".pdf"
   );
 }
 // iPad browsers do not reliably allow many automatic downloads. Generate the
@@ -6140,7 +6616,7 @@ function exportSelectedPDF() {
       I18n.t(" fiche(s) sélectionnée(s).") +
       "</p>" +
       I18n.html(
-        '<form id="selection-pdf-form"><fieldset><legend>Contenu</legend><label class="pdf-choice"><input type="radio" name="pdf-content" value="full" checked> Fiches complètes</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="notes"> Notes uniquement</label></fieldset><fieldset><legend>Organisation</legend><label class="pdf-choice"><input type="radio" name="pdf-group" value="combined" checked> Un PDF pour toute la sélection</label><label class="pdf-choice"><input type="radio" name="pdf-group" value="separate"> Un PDF par livre</label></fieldset></form><p id="selection-pdf-progress" role="status"></p><div id="selection-pdf-downloads"></div>',
+        '<form id="selection-pdf-form"><fieldset><legend>Contenu</legend><label class="pdf-choice"><input type="radio" name="pdf-content" value="full" checked> Fiches complètes</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="no-notes"> Fiche complète sans note</label><label class="pdf-choice"><input type="radio" name="pdf-content" value="notes"> Notes uniquement</label></fieldset><fieldset><legend>Organisation</legend><label class="pdf-choice"><input type="radio" name="pdf-group" value="combined" checked> Un PDF pour toute la sélection</label><label class="pdf-choice"><input type="radio" name="pdf-group" value="separate"> Un PDF par livre</label></fieldset></form><p id="selection-pdf-progress" role="status"></p><div id="selection-pdf-downloads"></div>',
       ),
     I18n.html(
       '<button id="selection-pdf-cancel">Fermer</button><button class="primary" id="selection-pdf-generate" form="selection-pdf-form" type="submit">Générer les PDF</button>',
@@ -6190,7 +6666,8 @@ function exportSelectedPDF() {
       links = $("#selection-pdf-downloads");
     const notesOnly = $("input[name=pdf-content]:checked").value === "notes",
       separate = $("input[name=pdf-group]:checked").value === "separate",
-      exportBooks = notesOnly ? notesBooks : books;
+      exportBooks = notesOnly ? notesBooks : books,
+      includeNotes = $("input[name=pdf-content]:checked").value !== "no-notes";
     if (!exportBooks.length) {
       updateScope();
       return;
@@ -6224,6 +6701,8 @@ function exportSelectedPDF() {
             notesOnly,
             name,
             enumLabel,
+            undefined,
+            { includeNotes },
           );
           if (cancelled) throw Error("cancelled");
           const url = URL.createObjectURL(
@@ -6235,7 +6714,7 @@ function exportSelectedPDF() {
             filename:
               String(index + 1).padStart(3, "0") +
               "_" +
-              pdfFilename(book, notesOnly, name),
+              pdfFilename(book, notesOnly, name, includeNotes),
             title: [book.title, book.number].filter(Boolean).join(" · "),
           });
           update(index + 1);
@@ -6248,6 +6727,7 @@ function exportSelectedPDF() {
           name,
           enumLabel,
           update,
+          { includeNotes },
         );
         if (cancelled) throw Error("cancelled");
         const url = URL.createObjectURL(
@@ -6260,7 +6740,11 @@ function exportSelectedPDF() {
             "bibliotheque" +
             (librarySlug(name) ? "_" + librarySlug(name) : "") +
             "_selection_" +
-            (notesOnly ? "notes" : "fiches") +
+            (notesOnly
+              ? "notes"
+              : includeNotes
+                ? "fiches"
+                : "fiches_sans_notes") +
             ".pdf",
           title: I18n.t("Toute la sélection"),
         });
@@ -6305,7 +6789,7 @@ function exportSelectedPDF() {
   };
 }
 // PDF files are generated locally from saved records; explicit links also suit iPad Safari.
-async function exportBookPDF(notesOnly) {
+async function exportBookPDF(notesOnly, includeNotes = true) {
   const book = C.clone(draft),
     palette = C.clone(state.palette),
     buttons = $$(".pdf-actions button");
@@ -6320,8 +6804,10 @@ async function exportBookPDF(notesOnly) {
       notesOnly,
       exportLibraryName,
       enumLabel,
+      undefined,
+      { includeNotes },
     );
-    const name = pdfFilename(book, notesOnly, exportLibraryName);
+    const name = pdfFilename(book, notesOnly, exportLibraryName, includeNotes);
     const url = URL.createObjectURL(
       new Blob([bytes], { type: "application/pdf" }),
     );
@@ -6331,7 +6817,11 @@ async function exportBookPDF(notesOnly) {
         C.esc(book.title) +
         (notesOnly
           ? I18n.t(" : notes et images jointes.")
-          : I18n.t(" : fiche complète, notes et images.")) +
+          : I18n.t(
+              includeNotes
+                ? " : fiche complète, notes et images."
+                : " : fiche complète sans les notes.",
+            )) +
         '</p><a class="pdf-download" href="' +
         url +
         '" download="' +
@@ -6478,11 +6968,12 @@ function renderEditor() {
     '<datalist id="theme-list">' +
     themes.map((t) => '<option value="' + C.esc(t) + '">').join("") +
     I18n.html(
-      '</datalist></div><p class="hint">Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.</p><h3 class="section-label">Image de couverture</h3><div id="cover-editor"></div><h3 class="section-label">Mes notes</h3><div class="format-bar"><button type="button" data-format="bold"><strong>Gras</strong></button><button type="button" data-format="italic"><em>Italique</em></button><button type="button" data-format="heading">Titre</button><button type="button" data-format="list">Liste</button><label class="note-color-label">Couleur<input type="color" id="note-text-color" value="#004d65" aria-label="Couleur des caractères"></label><button type="button" id="apply-note-color">Colorer</button><label class="note-color-label">Surlignage<input type="color" id="note-highlight-color" value="#ffe58a" aria-label="Couleur du surlignage"></label><button type="button" id="apply-note-highlight">Surligner</button><button type="button" id="preview-notes" style="margin-left:auto">Aperçu</button></div><label for="f-notes" hidden>Mes notes</label><textarea class="notes-input" id="f-notes" placeholder="Une idée, une citation, un passage à retrouver…">',
+      '</datalist></div><p class="hint">Les nouvelles images sont automatiquement allégées. La sauvegarde contient les copies optimisées, pas les originaux.</p><h3 class="section-label">Image de couverture</h3><div id="cover-editor"></div>',
     ) +
-    C.esc(draft.notes) +
+    textEditor("summary", I18n.t("Résumé"), draft.summary) +
+    textEditor("notes", I18n.t("Mes notes"), draft.notes) +
     I18n.html(
-      '</textarea><div id="notes-preview" class="notes" style="padding:18px;border:1px solid var(--line)" hidden></div><p class="hint">La sélection du texte puis « Colorer » ou « Surligner » applique la couleur choisie. « Aperçu » montre le résultat.</p><h3 class="section-label">Images jointes</h3><button type="button" class="upload-area" style="width:100%" id="add-images">',
+      '<h3 class="section-label">Images jointes</h3><button type="button" class="upload-area" style="width:100%" id="add-images">',
     ) +
     icon("image") +
     I18n.html(
@@ -6498,10 +6989,8 @@ function renderEditor() {
     I18n.html("Enregistrer la fiche</button></div>");
   $("#clear-loan-date").onclick = () => clearLoanFields(false);
   $("#return-loan").onclick = () => clearLoanFields(true);
-  $("#apply-note-color").onclick = () =>
-    colorNote("color", $("#note-text-color").value);
-  $("#apply-note-highlight").onclick = () =>
-    colorNote("highlight", $("#note-highlight-color").value);
+  bindTextEditor("notes");
+  bindTextEditor("summary");
   renderPalettePicker();
   renderAttachments();
   $("#book-form").oninput = () => markDirty();
@@ -6522,23 +7011,6 @@ function renderEditor() {
     renderDetail();
   };
   $("#add-images").onclick = () => $("#image-files").click();
-  $$("[data-format]").forEach(
-    (el) => (el.onclick = () => formatNote(el.dataset.format)),
-  );
-  $("#preview-notes").onclick = () => {
-    const preview = $("#notes-preview"),
-      show = preview.hidden;
-    preview.hidden = !show;
-    $("#f-notes").hidden = show;
-    $("#preview-notes").textContent = show
-      ? I18n.t("Écrire")
-      : I18n.t("Aperçu");
-    if (show) {
-      draft.notes = $("#f-notes").value;
-      preview.innerHTML = C.renderNotes(draft.notes, draft.images);
-      bindImages(preview, draft);
-    }
-  };
 }
 function clearLoanFields(returned) {
   const oldDate = $("#f-loanDate");
@@ -6604,6 +7076,7 @@ function readForm() {
     "language",
     "status",
     "notes",
+    "summary",
   ])
     draft[k] = $("#f-" + k).value;
   if (!draft.title.trim()) throw Error(I18n.t("Indiquez le titre du livre."));
@@ -6685,9 +7158,10 @@ function renderCoverEditor() {
   $("#choose-cover").onclick = () => $("#cover-file").click();
   if ($("#existing-cover"))
     $("#existing-cover").onchange = (e) => {
-      draft.images.forEach(
-        (im) => (im.role = im.id === e.target.value ? "cover" : "note"),
-      );
+      draft.images.forEach((im) => {
+        if (im.id === e.target.value) im.role = "cover";
+        else if (im.role === "cover") im.role = "note";
+      });
       markDirty();
       renderAttachments();
     };
@@ -6720,7 +7194,11 @@ function renderAttachments() {
         '"><div class="actions"><button class="small" type="button" data-insert-image="' +
         i +
         I18n.html(
-          '">Dans les notes</button><button class="small" type="button" data-cover="',
+          '">Dans les notes</button><button class="small" type="button" data-target="summary" data-insert-image="',
+        ) +
+        i +
+        I18n.html(
+          '">Dans le résumé</button><button class="small" type="button" data-cover="',
         ) +
         i +
         '">' +
@@ -6752,6 +7230,7 @@ function renderAttachments() {
             "](attachment:" +
             im.id +
             ")\n\n",
+          el.dataset.target || "notes",
         );
       }),
   );
@@ -6760,7 +7239,9 @@ function renderAttachments() {
       (el.onclick = () => {
         const im = draft.images[Number(el.dataset.cover)],
           was = im.role === "cover";
-        draft.images.forEach((x) => (x.role = "note"));
+        draft.images.forEach((x) => {
+          if (x.role === "cover") x.role = "note";
+        });
         if (!was) im.role = "cover";
         markDirty();
         renderAttachments();
@@ -6777,34 +7258,36 @@ function renderAttachments() {
           )
         )
           return;
-        const input = $("#f-notes");
-        input.value = input.value.replace(
-          new RegExp(
-            "!\\[[^\\]]*\\]\\(attachment:" +
-              im.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-              "\\)",
-            "g",
-          ),
-          "",
-        );
+        for (const key of ["notes", "summary"]) {
+          const input = $("#f-" + key);
+          input.value = input.value.replace(
+            new RegExp(
+              "!\\[[^\\]]*\\]\\(attachment:" +
+                im.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+                "\\)",
+              "g",
+            ),
+            "",
+          );
+        }
         draft.images.splice(i, 1);
         markDirty();
         renderAttachments();
       }),
   );
 }
-function insertNote(text) {
-  const el = $("#f-notes");
+function insertNote(text, key = "notes") {
+  const el = $("#f-" + key);
   el.hidden = false;
-  $("#notes-preview").hidden = true;
-  $("#preview-notes").textContent = I18n.t("Aperçu");
+  $("#" + key + "-preview").hidden = true;
+  $("#preview-" + key).textContent = I18n.t("Aperçu");
   const p = el.selectionStart;
   el.setRangeText(text, p, el.selectionEnd, "end");
   el.focus();
   markDirty();
 }
-function colorNote(kind, hex) {
-  const el = $("#f-notes"),
+function colorNote(kind, hex, key = "notes") {
+  const el = $("#f-" + key),
     text = el.value.slice(el.selectionStart, el.selectionEnd);
   if (!text) {
     toast(
@@ -6820,10 +7303,11 @@ function colorNote(kind, hex) {
         line ? "[" + kind + "=" + hex + "]" + line + "[/" + kind + "]" : line,
       )
       .join("\n"),
+    key,
   );
 }
-function formatNote(type) {
-  const el = $("#f-notes"),
+function formatNote(type, key = "notes") {
+  const el = $("#f-" + key),
     t =
       el.value.slice(el.selectionStart, el.selectionEnd) ||
       I18n.t("votre texte");
@@ -6839,7 +7323,7 @@ function formatNote(type) {
         .join("\n") +
       "\n",
   }[type];
-  insertNote(v);
+  insertNote(v, key);
 }
 function imageWeight(bytes) {
   return (
@@ -6875,12 +7359,78 @@ async function optimizeLibraryImages() {
   const dialog = modal(
     I18n.t("Alléger les images"),
     I18n.html(
-      '<p>Les couvertures sont réduites à 400 px de haut, les images de notes à 800 px de large. Les petites images ne sont jamais agrandies. Les animations sont conservées.</p><p class="notice">Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.</p><p id="optimization-progress" role="status"></p><div id="optimization-report"></div>',
+      '<p>Les petites images ne sont jamais agrandies. Les animations sont conservées. Les réglages restent provisoires jusqu’au remplacement des images.</p><div class="optimization-controls"><label for="opt-cover-height">Hauteur des couvertures <output id="opt-cover-value">400 px</output></label><input type="range" id="opt-cover-height" min="200" max="400" step="10" value="400"><label for="opt-note-width">Largeur des images de notes <output id="opt-note-value">800 px</output></label><input type="range" id="opt-note-width" min="600" max="800" step="10" value="800"></div><div class="optimization-examples" id="optimization-examples"></div><p class="hint">Aperçu réduit à l’écran. Les dimensions indiquées sont celles du fichier. « Annuler » conserve les images actuelles.</p><p class="notice">Les images optimisées remplacent les originaux dans la bibliothèque et les prochaines sauvegardes JSON. Conservez une sauvegarde avant de les remplacer. Cette opération efface l’historique Annuler/Rétablir et la copie précédant le dernier import.</p><p id="optimization-progress" role="status"></p><div id="optimization-report"></div>',
     ),
     I18n.html(
       '<button id="optimization-cancel">Annuler</button><button class="primary" id="optimization-start">Calculer le gain</button><button class="primary" id="optimization-apply" hidden>Remplacer les images</button>',
     ),
   );
+  const sizeOptions = () => ({
+    coverHeight: Number($("#opt-cover-height").value),
+    noteWidth: Number($("#opt-note-width").value),
+  });
+  const samples = [
+    snapshot.books.flatMap((b) => b.images).find((im) => im.role === "cover"),
+    snapshot.books.flatMap((b) => b.images).find((im) => im.role !== "cover"),
+  ];
+  let previewRevision = 0,
+    previewTimer;
+  const drawExamples = async () => {
+    const request = ++previewRevision,
+      sizes = sizeOptions(),
+      panels = [];
+    for (let i = 0; i < samples.length; i++) {
+      const sample = samples[i];
+      let result;
+      if (sample) {
+        try {
+          result = await ImageOptimizer.optimize(sample, sizes);
+        } catch {}
+      }
+      if (cancelled || request !== previewRevision) return;
+      const size = i === 0 ? sizes.coverHeight : sizes.noteWidth;
+      panels.push(
+        "<figure><figcaption>" +
+          I18n.t(i === 0 ? "Couverture" : "Images des notes") +
+          " · " +
+          size +
+          ' px</figcaption><div class="optimization-sample" style="' +
+          (i === 0
+            ? "height:" + size / 2 + "px"
+            : "width:" + size * 0.35 + "px") +
+          '">' +
+          (result
+            ? '<img src="' +
+              result.image.data +
+              '" alt="' +
+              I18n.t("Aperçu") +
+              '">'
+            : '<div class="size-placeholder"></div>') +
+          "</div><small>" +
+          (result
+            ? imageWeight(result.before) + " → " + imageWeight(result.after)
+            : I18n.t("Exemple de dimensions")) +
+          "</small></figure>",
+      );
+    }
+    $("#optimization-examples").innerHTML = panels.join("");
+  };
+  const changeSizes = () => {
+    if (imagesProcessing) return;
+    proposed = null;
+    $("#opt-cover-value").textContent = $("#opt-cover-height").value + " px";
+    $("#opt-note-value").textContent = $("#opt-note-width").value + " px";
+    $("#optimization-report").replaceChildren();
+    $("#optimization-apply").hidden = true;
+    $("#optimization-start").hidden = false;
+    $("#optimization-start").disabled = !total;
+    ++previewRevision;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(drawExamples, 180);
+  };
+  $("#opt-cover-height").oninput = changeSizes;
+  $("#opt-note-width").oninput = changeSizes;
+  drawExamples();
   $("#optimization-progress").textContent =
     total + I18n.t(" image(s) dans la bibliothèque, corbeille comprise.");
   $("#optimization-start").disabled = !total;
@@ -6894,6 +7444,8 @@ async function optimizeLibraryImages() {
     "close",
     () => {
       cancelled = true;
+      clearTimeout(previewTimer);
+      ++previewRevision;
       proposed = null;
     },
     { once: true },
@@ -6903,6 +7455,8 @@ async function optimizeLibraryImages() {
       apply = $("#optimization-apply");
     start.disabled = true;
     imagesProcessing = true;
+    const chosenSizes = sizeOptions();
+    $("#opt-cover-height").disabled = $("#opt-note-width").disabled = true;
     let before = 0,
       after = 0,
       count = 0,
@@ -6918,7 +7472,7 @@ async function optimizeLibraryImages() {
           if (cancelled) return;
           let result;
           try {
-            result = await ImageOptimizer.optimize(original);
+            result = await ImageOptimizer.optimize(original, chosenSizes);
           } catch (error) {
             result = {
               image: original,
@@ -6976,6 +7530,8 @@ async function optimizeLibraryImages() {
       }
     } finally {
       imagesProcessing = false;
+      if (!cancelled)
+        $("#opt-cover-height").disabled = $("#opt-note-width").disabled = false;
     }
   };
   $("#optimization-apply").onclick = async () => {
@@ -7075,6 +7631,7 @@ async function addImages(files, role = "note") {
     if ($("#save-book")) $("#save-book").disabled = false;
     $("#image-files").value = "";
     $("#cover-file").value = "";
+    $("#summary-files").value = "";
   }
 }
 async function saveBook() {
@@ -7595,7 +8152,7 @@ function help() {
   modal(
     I18n.t("Votre bibliothèque, simplement"),
     I18n.html(
-      '<p>Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.</p><p>Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. En mode notes uniquement, seules les fiches avec du texte ou des images dans les notes sont exportées. Chaque livre exporté commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.</p><p>Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.</p><div class="help-step"><span>1</span><div><h3>La recherche retrouve les livres</h3><p>La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « annotés » inclut les notes contenant seulement une image, même sans texte. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.</p></div></div><div class="help-step"><span>2</span><div><h3>Les fiches accueillent notes et images</h3><p>« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.</p></div></div><div class="help-step"><span>3</span><div><h3>La sauvegarde emporte les données</h3><p>Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.</p></div></div><div class="help-step"><span>4</span><div><h3>L’import restaure les données</h3><p>Sur un autre appareil, « Importer » ouvre une sauvegarde .bibliotheque.json. La restauration proposée rétablit la bibliothèque ou la collection contenue dans ce fichier. Seules les sauvegardes JSON Bibliothèque sont importées.</p></div></div><div class="help-step"><span>5</span><div><h3>La sélection permet les modifications groupées</h3><p>« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.</p></div></div><div class="notice"><strong>À retenir :</strong> les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.</div><p class="hint">L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.</p><p class="hint">Bibliothèque 1.3.4 · 30-10-2026 · Eigrutel Lab<br>Programme conçu et développé par Simon Léturgie dans le cadre d’Eigrutel BD Academy.<br>Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0. Marques Eigrutel réservées.</p>',
+      '<p>La liste affiche jusqu’à 100 livres par page. Le numéro de page ouvre un menu vers le haut. Le résumé possède son propre éditeur et ses images ; il reste distinct des notes. « Fiche complète sans note » conserve le résumé et exclut les notes. La loupe ouvre le diaporama des notes de la vue filtrée. Le style Penguin reconnaît Penguin et Penguin Classics dans la collection ou l’éditeur. Dans « Alléger les images », les curseurs règlent la hauteur des couvertures de 200 à 400 px et la largeur des images de notes de 600 à 800 px. Le calcul présente le gain avant remplacement ; Annuler conserve les images enregistrées.</p><p>Le champ « N° et sous-titre » accepte le numéro et le titre du tome dans une seule saisie. À titre identique, le tri alphabétique utilise le numéro du tome. Le tri par année place les années non renseignées à la fin.</p><p>Dans la sélection, « Exporter PDF » propose les fiches complètes ou les notes uniquement, réunies dans un PDF ou séparées en un PDF par livre. En mode notes uniquement, seules les fiches avec du texte ou des images dans les notes sont exportées. Chaque livre exporté commence sur une nouvelle page. Les PDF séparés se téléchargent avec leur lien individuel.</p><p>Le nom de la bibliothèque est enregistré dès la saisie. Il reste présent après les autres enregistrements et Annuler/Rétablir.</p><div class="help-step"><span>1</span><div><h3>La recherche retrouve les livres</h3><p>La recherche retrouve un titre, un numéro ou un mot dans les notes. Les filtres combinent collection, auteur, éditeur, langue, état, lecture, emplacement, étagère, type, année, prêt, favoris, nombre de pages et dates de prêt, en plus des thématiques et couleurs. Un appui sur un titre ouvre sa fiche. Dans une collection, les compteurs « annotés » et « images » filtrent uniquement cette collection. Un second appui retire ce filtre. Le compteur « annotés » inclut les notes contenant seulement une image, même sans texte. Le compteur « avec images » indique le nombre de livres contenant des images dans leurs notes. Chaque livre compte une fois, quel que soit le nombre d’images. Les couvertures sont exclues.</p></div></div><div class="help-step"><span>2</span><div><h3>Les fiches accueillent notes et images</h3><p>« Ajouter un livre » crée une fiche. « Dupliquer » ouvre une copie indépendante, avec ses champs, notes et images, à modifier avant de l’enregistrer. « Modifier » permet d’ajouter vos notes et vos images. « Enregistrer la fiche » conserve les modifications. Les boutons « PDF de la fiche complète » et « PDF des notes » téléchargent le contenu enregistré de la fiche. Le PDF des notes comprend leurs images, sans couverture ni propriétés. Le nombre de pages et la langue complètent la fiche. Dans les notes, la sélection d’un passage puis « Colorer » ou « Surligner » applique la couleur choisie ; « Aperçu » affiche le résultat. Une image peut servir de couverture ou être insérée dans vos notes. Les champs « Prêt à (nom) » et « Date de prêt » conservent le nom de la personne et la date. Effacer ces deux champs marque le retour du livre.</p></div></div><div class="help-step"><span>3</span><div><h3>La sauvegarde emporte les données</h3><p>Le bouton « Sauvegarder » télécharge un fichier complet, avec les livres, les notes, les images et les repères couleur. Le fichier se conserve dans Fichiers sur l’iPad ou dans un dossier de ton choix. Le bouton « Sauvegarder la collection », près du titre, exporte uniquement la collection affichée, avec ses images. Sa restauration conserve les autres collections.</p></div></div><div class="help-step"><span>4</span><div><h3>L’import restaure les données</h3><p>Sur un autre appareil, « Importer » ouvre une sauvegarde .bibliotheque.json. La restauration proposée rétablit la bibliothèque ou la collection contenue dans ce fichier. Seules les sauvegardes JSON Bibliothèque sont importées.</p></div></div><div class="help-step"><span>5</span><div><h3>La sélection permet les modifications groupées</h3><p>« Sélectionner » affiche les cases dans les vues tableau et couvertures. Dans ce mode, un appui sélectionne le livre sans ouvrir sa fiche. Dans la vue couvertures, un glissement sélectionne une plage de livres ; partir d’un livre déjà sélectionné désélectionne la plage. Le bord de l’écran fait défiler la page pendant le geste. Les espaces entre les cartes permettent le défilement habituel. « Tous les résultats » sélectionne les livres correspondant aux filtres, sur toutes les pages. « Dupliquer » crée une copie de chaque fiche sélectionnée et sélectionne les copies. « Annuler » revient en une action à la situation précédente. « Modifier la sélection » ouvre une fenêtre où seuls les champs cochés sont remplacés. Une valeur vide efface le champ choisi. Le prêt se modifie aussi en groupe. Les titres, numéros, ISBN, couvertures, notes et images jointes restent inchangés.</p></div></div><div class="notice"><strong>À retenir :</strong> les fiches enregistrées sont conservées dans ce navigateur. Les appareils ne se synchronisent pas automatiquement. Une sauvegarde téléchargée protège vos données si le navigateur est effacé.</div><p class="hint">L’application démarre vide. Une collection nommée « Que sais-je ? » affiche une bande blanche verticale centrale ; « Penguin » affiche une bande blanche horizontale centrale. Une image de couverture fournie remplace ces couvertures automatiques. Les exemplaires distincts et les propriétés d’origine sont conservés. Les réglages « Couleur d’accent », « Couleur de fond » et « Couleur des filtres » se trouvent dans le panneau gauche. Leur aperçu change immédiatement. « Appliquer » enregistre le choix, « Annuler » revient au dernier choix enregistré et « Réinitialiser les couleurs » rétablit les valeurs par défaut. Ils sont enregistrés sur cet appareil et inclus dans la sauvegarde complète. La sauvegarde d’une collection conserve les couleurs de l’interface actuelle lors de sa restauration.</p><p class="hint">Bibliothèque 1.4.1 · 02-11-2026 · Eigrutel Lab<br>Programme conçu et développé par Simon Léturgie dans le cadre d’Eigrutel BD Academy.<br>Code GNU AGPL v3.0+ · Documentation et modèles CC BY-SA 4.0. Marques Eigrutel réservées.</p>',
     ),
   );
 }
@@ -7605,6 +8162,7 @@ function switchLanguage() {
   const focusedId = document.activeElement?.id;
   const scrollTop = $("#drawer-body").scrollTop;
   const notePreview = $("#notes-preview") && !$("#notes-preview").hidden;
+  const summaryPreview = $("#summary-preview") && !$("#summary-preview").hidden;
   // Preserve unsaved input values; translation never validates or saves a draft.
   const fields = $$(
     "#drawer input,#drawer textarea,#drawer select,.appearance-settings input",
@@ -7643,12 +8201,22 @@ function switchLanguage() {
   if (editing && notePreview) {
     $("#notes-preview").hidden = false;
     $("#f-notes").hidden = true;
-    $("#notes-preview").innerHTML = C.renderNotes(
-      $("#f-notes").value,
-      draft.images,
+    $("#notes-preview").innerHTML = textContent(
+      { ...draft, notes: $("#f-notes").value },
+      "notes",
     );
     bindImages($("#notes-preview"), draft);
     $("#preview-notes").textContent = I18n.t("Écrire");
+  }
+  if (editing && summaryPreview) {
+    $("#summary-preview").hidden = false;
+    $("#f-summary").hidden = true;
+    $("#summary-preview").innerHTML = textContent(
+      { ...draft, summary: $("#f-summary").value },
+      "summary",
+    );
+    bindImages($("#summary-preview"), draft);
+    $("#preview-summary").textContent = I18n.t("Écrire");
   }
   document.getElementById(focusedId)?.focus({ preventScroll: true });
   $("#drawer-body").scrollTop = scrollTop;
@@ -7823,6 +8391,7 @@ $("#collection-backup-btn").onclick = backupCollection;
 $("#import-btn").onclick = importDialog;
 $("#import-file").onchange = (e) => readImport(e.target.files[0]);
 $("#image-files").onchange = (e) => addImages([...e.target.files]);
+$("#summary-files").onchange = (e) => addImages([...e.target.files], "summary");
 $("#cover-file").onchange = (e) => addImages([...e.target.files], "cover");
 window.addEventListener("beforeunload", (e) => {
   if (dirty || busy || imagesProcessing) {

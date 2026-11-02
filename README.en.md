@@ -1,8 +1,12 @@
-# Library 1.3.2
+# Library 1.4.1
 
 An offline personal book library, available in French and English. It supports collections, covers, illustrated notes, loans, filters, bulk editing and PDF exports. No personal books or images are bundled.
 
 [Documentation française](README.md)
+
+## New in 1.4.0
+
+The list displays up to 100 books per page. The page number opens an upward menu. Summary has its own editor and images, separate from notes. “Full record without notes” keeps the summary and excludes notes. The magnifier opens a slideshow of notes in the filtered view. Penguin styling recognises Penguin and Penguin Classics in the collection or publisher. In “Optimise images”, sliders set cover height from 200 to 400 px and note image width from 600 to 800 px. Calculation shows the savings before replacement; Cancel keeps the saved images.
 
 ## Getting started
 
@@ -65,11 +69,11 @@ Book returned in a saved record immediately saves an empty borrower and loan dat
 
 Every JSON, collection and PDF export awaits the library name save, including immediate clicks and keyboard shortcuts. Importing into an unnamed library adopts the backup name.
 
-`test-workflows.cjs` executes the delivered HTML using jsdom and fake-indexeddb: loan clearing, saving, reopening, reloading, export names, import and trash. PDF rendering alone is stubbed in the filename check. This simulation does not replace physical iPad verification. Version 1.3.2 is displayed in the user guide.
+`test-workflows.cjs` executes the delivered HTML using jsdom and fake-indexeddb: loan clearing, saving, reopening, reloading, export names, import and trash. PDF rendering alone is stubbed in the filename check. This simulation does not replace physical iPad verification. Version 1.3.4 is displayed in the user guide.
 
-## Images and backups, version 1.3.2
+## Images and backups, version 1.3.4
 
-New covers are optimised to at most 600 px high (also 960 px wide for panoramas); note images to 1,600 px on the longest side. Small images are never enlarged. PNG, WebP and JPEG candidates are compared where appropriate, preserving transparency. Larger results are rejected. GIF and animated PNG/WebP images remain unchanged. Copies already optimised at the required dimensions are not recompressed. The editor shows before/after sizes; JSON backups contain the optimised copies, not originals.
+New covers are optimised to at most 400 px high (also 960 px wide for panoramas); note images to 800 px wide. Small images are never enlarged. PNG, WebP and JPEG candidates are compared where appropriate, preserving transparency. Larger results are rejected. GIF and animated PNG/WebP images remain unchanged. Copies already optimised at the required dimensions are not recompressed. The editor shows before/after sizes; JSON backups contain the optimised copies, not originals.
 
 Existing and JSON-imported images can be processed from **Optimise images** in the sidebar. **Calculate savings** prepares a preview without changing the library. **Replace images** applies the result, including images in trash. The notice explains that undo/redo history and the pre-import snapshot are cleared to avoid hidden original copies. Unreadable images are retained and reported. Existing downloaded backups remain unchanged.
 
@@ -81,7 +85,7 @@ The JSON schema remains compatible, with the existing 150 MB import limit. Optim
 
 In selection mode, **Duplicate** appears between **Remove** and **Edit selection**. It adds one copy per selected book and selects the copies for immediate bulk editing. The group is a single Undo/Redo action, subject to the usual history limits.
 
-## Changes in 1.3.2
+## Changes in 1.3.3
 
 On phones the collection heading occupies one compact line above the controls. Long headings are visually truncated without changing their content. **Penguin** collections receive three equal horizontal colour / white / colour bands; uploaded covers take priority.
 
@@ -97,4 +101,18 @@ Full and collection JSON backups include all colour labels (ID, name and colour 
 
 Year ↑ sorts oldest first; Year ↓ sorts newest first. Missing years stay last in either direction.
 
-Each colour label has a remove cross in My colour labels. Used labels show the number of affected books, including Trash. Save removes the label and its record assignments without deleting books, notes or images. Cancel discards the draft. After saving, Undo/Redo reverses the whole change. JSON backups remember removals in the optional removedPaletteIds field so they do not reappear on another device running 1.3.2 or later. An older file explicitly defining a removed label can restore it.
+Each colour label has a remove cross in My colour labels. Used labels show the number of affected books, including Trash. Save removes the label and its record assignments without deleting books, notes or images. Cancel discards the draft. After saving, Undo/Redo reverses the whole change. JSON backups remember removals in the optional removedPaletteIds field so they do not reappear on another device running 1.3.3 or later. An older file explicitly defining a removed label can restore it.
+
+## Library-name persistence on iPad
+
+Version 1.3.3 follows the supplied Boussole strategy: two durable timestamped name snapshots, in localStorage and a separate IndexedDB entry. The newest snapshot is restored on startup and app resume. Book and image storage stays unchanged; large library data is not copied into localStorage.
+
+Teardown events do not save the visible input. Exports use the name model even if the browser temporarily clears the field. Deliberately clearing the name through an input edit remains supported. Existing names and pending-edit journals migrate automatically.
+
+After replacing the hosted HTML file, fully close and reopen the installed iPad app to load the new release. A name already lost by an earlier release must be entered once again or restored from a backup. Suspension/resume and missing-replica cases were tested in simulation; no physical iPad test was available.
+
+## Images and notes, version 1.3.4
+
+Covers are limited to 400 px high and note images to 800 px wide, preserving proportions without upscaling. Portrait note images may exceed 800 px high. New uploads use these limits; Optimise images also applies them to existing images, with a size preview before replacement. Animations remain unchanged and larger conversions are rejected.
+
+A record is annotated when its notes contain text or an image, including attached images without text. A cover alone does not count. Annotation counts and filters share this rule. Selected notes-only PDF exports exclude records without notes, both in a combined document and in separate files. The dialog shows the included count and prevents empty exports. Full-record exports still include the entire selection.

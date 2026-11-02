@@ -2,8 +2,8 @@
 Eigrutel Lab - Atelier d'outils libres pour la bande dessinée
 Programme conçu et développé par Simon Léturgie dans le cadre d'Eigrutel BD Academy.
 Nom : eigrutel-bibliotheque
-Version : 1.3.2
-Date : 29-10-2026
+Version : 1.4.1
+Date : 02-11-2026
 Code : GNU AGPL v3.0 ou version ultérieure.
 Documentation et modèles : CC BY-SA 4.0, sauf mention contraire.
 Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Academy : réservés.
@@ -738,7 +738,8 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         font-weight: 400;
         max-width: 100%;
         overflow-wrap: anywhere;
-        hyphens: auto;
+        -webkit-hyphens: none;
+        hyphens: none;
         line-height: 1.2;
       }
       .book-card h3 {
@@ -1417,7 +1418,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           transition: none !important;
         }
       }
-      /* 1.3.2: compact header, collapsible navigation and Que sais-je covers. */
+      /* 1.3.3: compact header, collapsible navigation and Que sais-je covers. */
       .sidebar {
         transition:
           transform 0.2s,
@@ -1613,7 +1614,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           font-size: 12px;
         }
       }
-      /* 1.3.2: grouped controls and neutral Personnages palette. */
+      /* 1.3.3: grouped controls and neutral Personnages palette. */
       .content {
         padding: 16px 32px 12px;
         display: flex;
@@ -1853,7 +1854,7 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           padding: 20px 8px 8px;
         }
       }
-      /* 1.3.2: phone controls and input sizing without disabling pinch zoom. */
+      /* 1.3.3: phone controls and input sizing without disabling pinch zoom. */
       @media (pointer: coarse) {
         .search input {
           font-size: 16px;
@@ -1900,7 +1901,9 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
           padding: 8px;
         }
         .topline .actions #add-btn {
-          gap: 4px;
+          gap: 2px;
+          padding-left: 7px;
+          padding-right: 12px;
         }
         .topline .actions .icon {
           width: 40px;
@@ -2349,6 +2352,138 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         flex-basis: 100%;
         overflow-wrap: anywhere;
       }
+
+      /* 1.4.1: upward page picker, note slideshow and image-size preview. */
+      .pager .page-jump {
+        position: relative;
+      }
+      #pager #page-menu {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        min-width: 120px;
+        max-height: min(260px, 55vh);
+        overflow-y: auto;
+        padding: 6px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--white);
+        box-shadow: 0 6px 22px #0002;
+      }
+      #pager #page-menu button {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        width: 100%;
+        min-height: 40px;
+        background: transparent;
+        flex-shrink: 0;
+        text-align: left;
+        justify-content: flex-start;
+        white-space: nowrap;
+      }
+      #pager #page-menu button + button {
+        border-top: 1px solid var(--line);
+      }
+      #pager #page-menu button:hover {
+        background: var(--sidebar-bg);
+      }
+      #pager #page-menu [aria-selected="true"] {
+        background: var(--red);
+        color: var(--accent-ink);
+      }
+      #view-notes {
+        font-size: 24px;
+        font-weight: 950;
+        line-height: 1;
+      }
+      .text-preview {
+        padding: 18px;
+        border: 1px solid var(--line);
+      }
+      #modal.notes-slideshow {
+        width: min(850px, 94vw);
+        max-height: 90vh;
+        padding-bottom: 0;
+      }
+      #note-slide {
+        max-height: 65vh;
+        overflow-y: auto;
+        padding: 8px 2px 24px;
+        touch-action: pan-y;
+      }
+      #note-slide h3 {
+        margin: 8px 0;
+        font-size: 22px;
+        overflow-wrap: anywhere;
+      }
+      .notes-slideshow .dialog-actions {
+        position: sticky;
+        bottom: 0;
+        background: var(--white);
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        padding: 14px 0;
+      }
+      .optimization-controls {
+        display: grid;
+        gap: 8px;
+        margin: 18px 0;
+      }
+      .optimization-controls label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .optimization-controls input {
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        accent-color: var(--red);
+      }
+      .optimization-examples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        align-items: flex-start;
+      }
+      .optimization-examples figure {
+        margin: 0;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .optimization-examples figcaption {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .optimization-sample {
+        display: flex;
+        align-items: flex-start;
+        max-width: 100%;
+        max-height: 240px;
+        width: 140px;
+      }
+      .optimization-sample img {
+        object-fit: contain;
+        object-position: top left;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      .size-placeholder {
+        width: 100%;
+        height: 100%;
+        min-height: 130px;
+        background: var(--soft);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
     </style>
   </head>
   <body>
@@ -2543,6 +2678,16 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
         </div>
         <div class="collection-summary">
           <div class="stats" id="stats"></div>
+          <button
+            type="button"
+            class="icon"
+            id="view-notes"
+            title="Voir le diaporama des notes"
+            aria-label="Voir le diaporama des notes"
+            hidden
+          >
+            <span aria-hidden="true">⌕</span>
+          </button>
           <button
             class="subtle small"
             id="collection-backup-btn"
@@ -2770,6 +2915,13 @@ Marques, logos et signes distinctifs Eigrutel / Eigrutel Lab / Eigrutel BD Acade
       hidden
     /><input
       id="image-files"
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      multiple
+      hidden
+    />
+    <input
+      id="summary-files"
       type="file"
       accept="image/jpeg,image/png,image/webp,image/gif"
       multiple

@@ -1,8 +1,12 @@
-# Bibliothèque 1.3.2
+# Bibliothèque 1.4.1
 
 Application personnelle de bibliothèque, en français et en anglais. Livres, collections, couvertures, notes illustrées, prêts, filtres, modifications groupées et exports PDF. Aucun livre ni image personnelle n’est fourni.
 
 [English documentation](README.en.md)
+
+## Nouveautés 1.4.0
+
+La liste affiche jusqu’à 100 livres par page. Le numéro de page ouvre un menu vers le haut. Le résumé possède son propre éditeur et ses images ; il reste distinct des notes. « Fiche complète sans note » conserve le résumé et exclut les notes. La loupe ouvre le diaporama des notes de la vue filtrée. Le style Penguin reconnaît Penguin et Penguin Classics dans la collection ou l’éditeur. Dans « Alléger les images », les curseurs règlent la hauteur des couvertures de 200 à 400 px et la largeur des images de notes de 600 à 800 px. Le calcul présente le gain avant remplacement ; Annuler conserve les images enregistrées.
 
 ## Utilisation
 
@@ -84,11 +88,11 @@ Dans une fiche enregistrée, « Livre rendu » enregistre immédiatement le retr
 
 Le nom de bibliothèque est enregistré avant chaque export JSON, collection ou PDF, y compris après un clic immédiat ou un raccourci clavier. Les sauvegardes importées dans une bibliothèque sans nom lui transmettent leur nom.
 
-`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.3.2 est indiqué dans le mode d’emploi.
+`test-workflows.cjs` exécute le HTML livré avec jsdom et fake-indexeddb : effacement et retour de prêt, enregistrement, réouverture, rechargement, noms des exports, import et corbeille. Le rendu PDF est remplacé uniquement dans le test de nommage. Cette simulation ne remplace pas un contrôle sur iPad réel. Le numéro 1.3.4 est indiqué dans le mode d’emploi.
 
-## Images et sauvegardes, version 1.3.2
+## Images et sauvegardes, version 1.3.4
 
-L’ajout d’une couverture ou d’une image de notes optimise automatiquement la copie stockée. Les couvertures sont limitées à 600 px de haut (et 960 px de large pour les panoramas), les notes à 1 600 px sur le grand côté. Les images plus petites ne sont jamais agrandies. PNG, WebP et JPEG sont comparés selon le format d’origine ; la transparence est conservée. Une copie plus lourde est refusée. Les GIF et les animations PNG/WebP sont conservés. Une image déjà optimisée à cette taille n’est pas recompressée.
+L’ajout d’une couverture ou d’une image de notes optimise automatiquement la copie stockée. Les couvertures sont limitées à 400 px de haut (et 960 px de large pour les panoramas), les notes à 800 px de large. Les images plus petites ne sont jamais agrandies. PNG, WebP et JPEG sont comparés selon le format d’origine ; la transparence est conservée. Une copie plus lourde est refusée. Les GIF et les animations PNG/WebP sont conservés. Une image déjà optimisée à cette taille n’est pas recompressée.
 
 Le poids avant/après est affiché dans l’éditeur. La sauvegarde JSON contient les copies optimisées, pas les originaux. Conserver les fichiers originaux à part si nécessaire.
 
@@ -102,7 +106,7 @@ Le bouton **Dupliquer**, à côté de **Modifier**, ouvre une copie dans l’éd
 
 En mode sélection, **Dupliquer** se trouve entre **Retirer** et **Modifier la sélection**. Il ajoute une copie de chaque fiche sélectionnée. Les copies deviennent la nouvelle sélection pour permettre une modification groupée immédiate. La duplication groupée correspond à une seule action dans Annuler/Rétablir, dans les limites habituelles de l’historique.
 
-## Nouveautés 1.3.2
+## Nouveautés 1.3.3
 
 Sur téléphone, le titre de collection reste sur une seule ligne au-dessus des commandes. Les noms longs sont abrégés visuellement sans modifier leur contenu.
 La collection **Penguin** (sans tenir compte de la casse et des espaces) reçoit une couverture couleur / blanc / couleur en trois bandes horizontales égales. Une image de couverture reste prioritaire.
@@ -119,4 +123,18 @@ Les sauvegardes JSON complètes et par collection incluent tous les repères cou
 
 « Année ↑ » trie de la plus ancienne à la plus récente ; « Année ↓ » effectue le tri inverse. Les années non renseignées restent à la fin.
 
-Chaque repère possède une croix de retrait dans « Mes repères couleur ». S’il est utilisé, un message indique le nombre de livres concernés, corbeille comprise. « Enregistrer » retire le repère et son affectation aux fiches, sans supprimer de livre, de note ou d’image. « Annuler » ferme le panneau sans appliquer les changements. Après enregistrement, Annuler/Rétablir agit sur l’ensemble de cette modification. Les JSON mémorisent les retraits avec le champ facultatif removedPaletteIds, pour qu’ils ne réapparaissent pas sur un autre appareil utilisant la version 1.3.2 ou ultérieure. Un ancien fichier définissant explicitement ce repère peut le rétablir.
+Chaque repère possède une croix de retrait dans « Mes repères couleur ». S’il est utilisé, un message indique le nombre de livres concernés, corbeille comprise. « Enregistrer » retire le repère et son affectation aux fiches, sans supprimer de livre, de note ou d’image. « Annuler » ferme le panneau sans appliquer les changements. Après enregistrement, Annuler/Rétablir agit sur l’ensemble de cette modification. Les JSON mémorisent les retraits avec le champ facultatif removedPaletteIds, pour qu’ils ne réapparaissent pas sur un autre appareil utilisant la version 1.3.3 ou ultérieure. Un ancien fichier définissant explicitement ce repère peut le rétablir.
+
+## Persistance du nom sur iPad
+
+La version 1.3.3 reprend le principe de Boussole : deux copies durables et horodatées du nom, dans localStorage et dans une entrée IndexedDB indépendante. La plus récente est restaurée au démarrage et au retour dans l’application. Les livres et images restent dans leur stockage habituel et ne sont pas dupliqués dans localStorage.
+
+Les événements de fermeture ne relisent pas le champ affiché pour le sauvegarder. Les exports utilisent le nom enregistré en mémoire, même si le navigateur vide temporairement le champ. Effacer volontairement le nom pendant la saisie reste possible. Les anciennes données et les anciens journaux de saisie sont migrés automatiquement.
+
+Après remplacement du fichier HTML sur le site, fermer complètement l’application iPad puis la relancer pour charger la nouvelle version. Un nom déjà perdu dans la version précédente doit être ressaisi une fois, ou restauré depuis une sauvegarde qui le contient. Les scénarios de suspension/reprise et de perte d’une copie ont été testés en simulation ; aucun essai sur iPad physique n’a été effectué.
+
+## Images et notes, version 1.3.4
+
+Les couvertures sont limitées à 400 px de haut et les images de notes à 800 px de large, en conservant les proportions et sans agrandir les petites images. Une image de notes verticale peut donc dépasser 800 px de haut. Ces limites s’appliquent aux nouveaux ajouts ; « Alléger les images » les applique aussi aux images déjà enregistrées, avec calcul du gain avant remplacement. Les animations restent conservées et une conversion plus lourde que l’original est refusée.
+
+Une fiche est annotée dès que ses notes contiennent du texte ou une image, y compris une image jointe sans texte. Une couverture seule ne compte pas. Les compteurs et filtres « annotés » suivent cette règle. Dans les exports groupés de notes, les fiches sans note sont exclues, en PDF unique comme en fichiers séparés. Le panneau indique le nombre de fiches retenues et empêche un export vide. L’export des fiches complètes conserve toute la sélection.

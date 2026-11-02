@@ -185,7 +185,7 @@ async function put(factory, value) {
     ["Édition 1930", "1950 / 1980", "2020", "inconnue", ""],
   );
   assert(C.isPenguin(" PENGUIN "));
-  assert(!C.isPenguin("Penguin Classics"));
+  assert(C.isPenguin("Penguin Classics"));
   assert(C.isQueSaisJe("Que sais-je?"));
   const factory = new IDBFactory();
   await seed(factory);
@@ -390,12 +390,140 @@ async function put(factory, value) {
     ui.click("export-selected");
     assert.equal(ui.$("#selection-pdf-form legend").textContent, "Content");
     assert.equal(ui.$("#selection-pdf-generate").textContent, "Generate PDFs");
+    ui.click("selection-pdf-cancel");
+    ui.click("language-switch");
+    // A large selection exports only the three annotated records. One has
+    // text, one embeds an image, and one has an attached image with no text.
+    // Covers and whitespace alone must not be treated as annotations.
+    const sparse = Array.from({ length: 400 }, (_, i) =>
+      C.book({
+        id: "sparse-" + i,
+        title: "Livre " + String(i).padStart(3, "0"),
+        collection: i === 399 ? "Autre" : "Notes",
+        notes: " \n ",
+      }),
+    );
+    sparse[0].notes = "Une vraie note.";
+    sparse[200].notes = "![Image seule](attachment:only-image)";
+    sparse[200].images = [
+      { id: "only-image", role: "note", name: "note.png", data: note },
+    ];
+    sparse[399].images = [
+      { id: "attached", role: "note", name: "note.png", data: note },
+    ];
+    sparse[1].images = [
+      { id: "cover-only", role: "cover", name: "cover.png", data: cover },
+    ];
+    assert.deepEqual(
+      sparse.filter(C.hasNotes).map((b) => b.id),
+      ["sparse-0", "sparse-200", "sparse-399"],
+    );
+    ui.w.sparseBooks = sparse;
+    await ui.w.eval("commit({...state,books:sparseBooks},{history:false})");
+    ui.w.render();
+    assert.equal(
+      ui.$('#navigation [data-scope="notes"] .count').textContent,
+      "3",
+    );
+    assert.equal(ui.$("#stat-notes strong").textContent, "3");
+    assert.equal(ui.$("#stat-images strong").textContent, "2");
+    ui.$('#navigation [data-scope="notes"]').click();
+    assert.equal(ui.w.eval("filtered().length"), 3);
+    ui.w.navigateScope("collection:Notes");
+    assert.equal(ui.$("#stat-notes strong").textContent, "2");
+    ui.click("stat-notes");
+    assert.equal(ui.w.eval("filtered().length"), 2);
+    ui.$('#navigation [data-scope="all"]').click();
+    if (!ui.w.eval("bulkMode")) ui.click("select-books");
+    ui.click("select-results");
+    assert.equal(ui.w.eval("bulkIds.size"), 400);
+    for (const group of ["combined", "separate"]) {
+      ui.click("export-selected");
+      const radio = ui.$('input[name="pdf-content"][value="notes"]');
+      radio.click();
+      assert.equal(
+        ui.$("#selection-pdf-scope").textContent,
+        "3 fiche(s) avec des notes sur 400 sélectionnée(s). Les fiches sans note sont exclues.",
+      );
+      ui.$('input[name="pdf-group"][value="' + group + '"]').click();
+      ui.click("selection-pdf-generate");
+      await until(() => !ui.$("#selection-pdf-generate").disabled);
+      const links = [
+        ...ui.w.document.querySelectorAll(
+          "#selection-pdf-downloads a[download]",
+        ),
+      ];
+      assert.equal(
+        links.length,
+        group === "combined" ? 1 : 3,
+        ui.$("#selection-pdf-progress").textContent,
+      );
+      let count = 0;
+      for (const link of links) {
+        const bytes = await new Promise((resolve, reject) => {
+          const reader = new ui.w.FileReader();
+          reader.onload = () => resolve(Buffer.from(reader.result));
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(ui.blobs.get(link.href));
+        });
+        count += (await PDFDocument.load(bytes)).getPageCount();
+        if (group === "separate")
+          assert(/livre-(000|200|399)_/.test(link.download), link.download);
+        if (output)
+          fs.writeFileSync(
+            path.join(output, "sparse-notes-" + group + "-" + count + ".pdf"),
+            bytes,
+          );
+      }
+      assert.equal(count, 3, "No empty note pages among 400 selected books");
+      ui.click("selection-pdf-cancel");
+    }
+    assert.equal(
+      ui.w.eval("bulkIds.size"),
+      400,
+      "Export preserves the selection",
+    );
+    assert.equal(
+      (await saved(factory)).books.length,
+      400,
+      "Export leaves the library unchanged",
+    );
+    ui.click("clear-selection");
+    ui.$('[data-book="sparse-1"]').click();
+    ui.click("export-selected");
+    ui.$('input[name="pdf-content"][value="notes"]').click();
+    assert(ui.$("#selection-pdf-generate").disabled);
+    assert.equal(
+      ui.$("#selection-pdf-scope").textContent,
+      "Aucune note à exporter dans cette sélection.",
+    );
+    ui.$("#selection-pdf-form").dispatchEvent(
+      new ui.w.Event("submit", { cancelable: true }),
+    );
+    assert.equal(ui.$("#selection-pdf-downloads").children.length, 0);
+    ui.$('input[name="pdf-content"][value="full"]').click();
+    assert(
+      !ui.$("#selection-pdf-generate").disabled,
+      "Cover-only full record remains exportable",
+    );
+    ui.click("selection-pdf-cancel");
+    ui.click("language-switch");
+    ui.click("export-selected");
+    ui.$('input[name="pdf-content"][value="notes"]').click();
+    assert.equal(
+      ui.$("#selection-pdf-scope").textContent,
+      "There are no notes to export in this selection.",
+    );
+    await assert.rejects(
+      ui.w.eval("LibraryPDF.create([state.books[1]],state.palette,true)"),
+      /There are no notes/,
+    );
     assert.deepEqual(
       ui.errors.map((e) => e.message),
       [],
     );
     console.log(
-      "PASS: numeric title tie-break, chronological sort, Penguin/custom covers, compact metadata, durable typed name/recovery/clear/concurrent save, named backups, four real selection PDF variants, pagination, images and FR/EN. Pages:",
+      "PASS: title/year sorting, covers/metadata, name persistence, four PDF variants, image-only annotation counts, 400 selected books → 3 note PDFs/pages, empty export guard and FR/EN. Pages:",
       JSON.stringify(pages),
     );
   } finally {

@@ -74,14 +74,14 @@ async function start(factory) {
    assert(ui.$('#optimization-report').textContent.includes('→'));ui.click('optimization-cancel');
    assert.equal((await saved(factory)).books[0].images[0].data,original);
    ui.click('optimize-images-btn');await until(()=>ui.$('#modal').open && ui.$('#optimization-start'));ui.click('optimization-start');await until(()=>!ui.$('#optimization-apply').hidden);ui.click('optimization-apply');await until(()=>!ui.$('#modal').open);
-   const optimized=await saved(factory),image=optimized.books[0].images[0];assert(image.data.length<original.length);assert.equal(image.id,'picture');assert.equal(image.caption,'Légende');assert.equal(image.optimization.height,600);
+   const optimized=await saved(factory),image=optimized.books[0].images[0];assert(image.data.length<original.length);assert.equal(image.id,'picture');assert.equal(image.caption,'Légende');assert.equal(image.optimization.height,400);
    ui.click('backup-btn');await until(()=>ui.downloads.length===1);await until(()=>!ui.w.eval('busy'));
    const exported=JSON.parse(await ui.text(ui.downloads[0].blob));assert.equal(exported.books[0].images[0].data,image.data);assert(!JSON.stringify(exported).includes(original));assert.equal(ui.downloads[0].name,'bibliotheque_test-images.json');
    ui.click('optimize-images-btn');await until(()=>ui.$('#modal').open && ui.$('#optimization-start'));ui.click('optimization-start');await until(()=>!ui.$('#optimization-apply').hidden);assert(ui.$('#optimization-apply').disabled);ui.click('optimization-cancel');
    // Real FileReader + image encoder upload path, followed by the real form save.
    ui.open();const bytes=Buffer.from(original.split(',')[1],'base64');await ui.w.addImages([new ui.w.File([bytes],'nouvelle.jpg',{type:'image/jpeg'})],'note');
    assert(ui.$('#attachments').textContent.includes('→'));ui.click('save-book');await until(()=>ui.$('#edit-book'));
-   const after=await saved(factory);assert.equal(after.books[0].images.length,2);assert(after.books[0].images[1].data.length<original.length);assert.equal(Math.max(after.books[0].images[1].optimization.width,after.books[0].images[1].optimization.height),1600);
+   const after=await saved(factory);assert.equal(after.books[0].images.length,2);assert(after.books[0].images[1].data.length<original.length);assert.equal(after.books[0].images[1].optimization.width,800);
    assert.deepEqual(ui.errors.map(e=>e.message),[]);ui.close();ui=await start(factory);
    ui.open();assert.equal(ui.$('#attachments').querySelectorAll('[data-caption]').length,2);
    console.log('PASS: delivered HTML image optimisation preview/cancel/apply, real upload encoding, JSON export, stable image IDs, persistence and repeated optimisation.');

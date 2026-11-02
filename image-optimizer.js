@@ -10,11 +10,21 @@ const ImageOptimizer = (() => {
       (text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0)
     );
   }
-  function dimensions(width, height, role) {
+  function limits(options = {}) {
+    return {
+      coverHeight: Math.min(
+        400,
+        Math.max(200, Number(options.coverHeight) || 400),
+      ),
+      noteWidth: Math.min(800, Math.max(600, Number(options.noteWidth) || 800)),
+    };
+  }
+  function dimensions(width, height, role, options = {}) {
+    const sizes = limits(options);
     const scale =
       role === "cover"
-        ? Math.min(1, 600 / height, 960 / width)
-        : Math.min(1, 1600 / Math.max(width, height));
+        ? Math.min(1, sizes.coverHeight / height, 960 / width)
+        : Math.min(1, sizes.noteWidth / width);
     return {
       width: Math.max(1, Math.round(width * scale)),
       height: Math.max(1, Math.round(height * scale)),
@@ -57,7 +67,7 @@ const ImageOptimizer = (() => {
     }
     return false;
   }
-  async function optimize(image) {
+  async function optimize(image, options = {}) {
     const original = image.data,
       before = bytes(original);
     const unchanged = (reason) => ({
@@ -70,7 +80,7 @@ const ImageOptimizer = (() => {
     const keepAnimation = animated(original);
     const prior = image.optimization;
     if (prior?.version === VERSION && prior.bytes === before) {
-      const target = dimensions(prior.width, prior.height, image.role);
+      const target = dimensions(prior.width, prior.height, image.role, options);
       if (target.width === prior.width && target.height === prior.height)
         return unchanged("optimized");
     }
@@ -98,7 +108,7 @@ const ImageOptimizer = (() => {
             : I18n.t("Image illisible."),
         );
       if (keepAnimation) return unchanged("animation");
-      const target = dimensions(w, h, image.role);
+      const target = dimensions(w, h, image.role, options);
       canvas = document.createElement("canvas");
       canvas.width = target.width;
       canvas.height = target.height;
@@ -164,7 +174,7 @@ const ImageOptimizer = (() => {
       }
     }
   }
-  return { bytes, dimensions, optimize };
+  return { bytes, dimensions, optimize, limits };
 })();
 if (typeof module !== "undefined" && module.exports)
   module.exports = ImageOptimizer;
