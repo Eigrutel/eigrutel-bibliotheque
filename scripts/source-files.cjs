@@ -28,6 +28,10 @@ const sourceFiles = [
   "test-image-optimizer.cjs",
   "test-image-workflows.cjs",
   "test-duplicate-workflows.cjs",
+  "test-library-130.cjs",
+  "test-library-140.cjs",
+  "test-palette-workflows.cjs",
+  "test-name-persistence.cjs",
 ];
 for (const dir of ["scripts", "locales", "vendor", "favicon"])
   for (const name of fs.readdirSync(dir).sort())
